@@ -58,7 +58,7 @@ export const CHECKS: Check[] = [
     name: 'check-types',
     description: 'TypeScript type check',
     bin: 'tsc',
-    // Getter: resolved per run/eject in the target project, not at import.
+    // Use a getter so the command is resolved per run/eject in the target project.
     get checkCommand() {
       return typeCheckCommand()
     },
