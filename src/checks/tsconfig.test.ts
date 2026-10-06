@@ -36,7 +36,7 @@ describe('typeCheckCommand', () => {
     expect(typeCheckCommand(dir)).toEqual(['tsc', '--noEmit'])
   })
 
-  it('falls back to tsc --noEmit when tsconfig is missing', () => {
+  it('returns tsc --noEmit rather than throwing when tsconfig is missing (eject ignores canRun)', () => {
     expect(typeCheckCommand(dir)).toEqual(['tsc', '--noEmit'])
   })
 })
