@@ -1,0 +1,12 @@
+{
+  "1240992": {
+    "active": true,
+    "notes": "braces DoS via skott > depcheck > findup-sync > micromatch; no patched release. Dev-time tool on own source.",
+    "expiry": "2026-10-13"
+  },
+  "1241202": {
+    "active": true,
+    "notes": "sprintf-js DoS via skott > depcheck > js-yaml@3 > argparse; no patched release. Dev-time tool on own source.",
+    "expiry": "2026-10-13"
+  }
+}
