@@ -7,6 +7,7 @@ import { defineExternalCheck } from './external.ts'
 import { runForbiddenStrings } from './forbidden-strings.ts'
 import { runHardcodedColors } from './hardcoded-colors.ts'
 import { jscpdCount } from './maxWarnings.ts'
+import { typeCheckCommand } from './tsconfig.ts'
 import type { Check, CheckResult } from './types.ts'
 
 function nativeCheck(name: string, description: string, recommended: boolean, run: () => CheckResult, script = `verifyx ${name}`): Check {
@@ -57,7 +58,10 @@ export const CHECKS: Check[] = [
     name: 'check-types',
     description: 'TypeScript type check',
     bin: 'tsc',
-    checkCommand: ['tsc', '--noEmit'],
+    // Use a getter so the command is resolved per run/eject in the target project.
+    get checkCommand() {
+      return typeCheckCommand()
+    },
     devDeps: ['typescript'],
     canRun: () => fs.existsSync('tsconfig.json'),
     recommended: true,
