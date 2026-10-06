@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { CHECKS, getCheck, recommendedChecks } from './registry.ts'
@@ -50,6 +54,21 @@ describe('check registry', () => {
     )
     expect(getCheck('circular-deps')?.eject?.fix).toBeUndefined()
     expect(getCheck('complexity')?.eject).toBeUndefined()
+  })
+
+  it('resolves the check-types command in the current project at eject time', () => {
+    const originalCwd = process.cwd()
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'verifyx-registry-'))
+    try {
+      process.chdir(dir)
+      fs.writeFileSync('tsconfig.json', '{}')
+      expect(getCheck('check-types')?.eject?.check).toBe('tsc --noEmit')
+      fs.writeFileSync('tsconfig.json', '{ "files": [], "references": [{ "path": "./tsconfig.app.json" }] }')
+      expect(getCheck('check-types')?.eject?.check).toBe('tsc -b')
+    } finally {
+      process.chdir(originalCwd)
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('returns undefined for unknown checks', () => {

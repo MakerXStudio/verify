@@ -44,6 +44,8 @@ export type ExternalCheckSpec = {
   failureAdvice?: string
   /** Extra guard beyond bin presence (e.g. require a tsconfig). */
   canRun?: () => boolean
+  /** Returns a failure message to fail the check without running the tool (e.g. it would write into the source tree). */
+  preflight?: () => string | undefined
   /** Rewrite the tool's captured output before it is printed, e.g. to strip a tool's own hardcoded colouring. */
   transformOutput?: (output: string) => string
   maxWarnings?: MaxWarningsSupport
@@ -129,6 +131,11 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
       if (spec.canRun && !spec.canRun()) {
         console.log(color.dim(`${spec.name}: not applicable here — skipping`))
         return { name: spec.name, ok: true, skipped: true }
+      }
+      const blocked = spec.preflight?.()
+      if (blocked) {
+        console.error(blocked)
+        return { name: spec.name, ok: false }
       }
       // quiet: buffer the tool's output and flush only on failure (streamed live under --verbose).
       const runReport = async (argv: string[]): Promise<CheckResult> => {

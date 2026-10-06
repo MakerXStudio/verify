@@ -7,7 +7,7 @@ import { defineExternalCheck } from './external.ts'
 import { runForbiddenStrings } from './forbidden-strings.ts'
 import { runHardcodedColors } from './hardcoded-colors.ts'
 import { jscpdCount } from './maxWarnings.ts'
-import { typeCheckCommand } from './tsconfig.ts'
+import { typeCheckCommand, typeCheckPreflight } from './tsconfig.ts'
 import type { Check, CheckResult } from './types.ts'
 
 function nativeCheck(name: string, description: string, recommended: boolean, run: () => CheckResult, script = `verifyx ${name}`): Check {
@@ -64,6 +64,7 @@ export const CHECKS: Check[] = [
     },
     devDeps: ['typescript'],
     canRun: () => fs.existsSync('tsconfig.json'),
+    preflight: () => typeCheckPreflight(),
     recommended: true,
     docs: 'https://www.typescriptlang.org/tsconfig',
   }),
