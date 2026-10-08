@@ -5,6 +5,7 @@ import { runComments } from './comments.ts'
 import { runComplexity } from './complexity.ts'
 import { defineExternalCheck } from './external.ts'
 import { runForbiddenStrings } from './forbidden-strings.ts'
+import { runGithubActions } from './github-actions.ts'
 import { runHardcodedColors } from './hardcoded-colors.ts'
 import { jscpdCount } from './maxWarnings.ts'
 import { typeCheckCommand, typeCheckPreflight } from './tsconfig.ts'
@@ -34,6 +35,7 @@ export const CHECKS: Check[] = [
   ),
   nativeCheck('hardcoded-colors', 'Fail on literal hex / 0x colour values in source', false, () => runHardcodedColors()),
   nativeCheck('forbidden-strings', 'Fail on disallowed JSON config values (rules from verify config)', false, () => runForbiddenStrings()),
+  nativeCheck('github-actions', 'Schema-validate GitHub Actions workflows and composite/action metadata', true, () => runGithubActions()),
   defineExternalCheck({
     name: 'lint',
     description: 'Lint — auto-fixes locally, checks in CI',

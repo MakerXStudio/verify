@@ -120,6 +120,7 @@ Flags on the bare `verifyx` command:
 | `comments`          | native   | Flags comment blocks taller than `--max-lines` (default 2), to push for self-documenting code. JSDoc and `context:`-prefixed blocks are always allowed. Add `--block-new-comments` to also fail any comment on a changed line (vs `HEAD` locally, the PR base in CI).                                                                                                                                  |
 | `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                                                                                                                                                                                                                                                                             |
 | `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                                                                                                                                                                                                                                                                                       |
+| `github-actions`    | native   | Schema-validates GitHub Actions workflows (`.github/workflows/*.yml`) and action metadata (`.github/actions/**/action.yml`, root `action.yml`) against vendored SchemaStore schemas, e.g. `timeout-minutes` on a composite action step, and fails trigger `paths`/`paths-ignore` globs that match no file. Skips when there are none.                                                                  |
 | `lint`              | external | Linting; auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                                                                                                                                                                                                                                                                                  |
 | `format`            | external | Formatting; writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                                                                                                                                                                                                                                                                                    |
 | `check-types`       | external | TypeScript type check (`tsc --noEmit`, or `tsc -b` when `tsconfig.json` has `references`); skips when there is no `tsconfig.json`. In build mode it fails up front if any config in the reference graph would write output next to its sources (set `noEmit` or an `outDir`). `tsc -b` still writes `.tsbuildinfo` files; point `tsBuildInfoFile` at `node_modules/.tmp` to keep them out of the tree. |
@@ -231,6 +232,25 @@ Fails when a configured JSON value matches a disallowed glob, handy for catching
 }
 ```
 
+### `github-actions`
+
+```sh
+verifyx github-actions
+```
+
+Catches workflow and action syntax errors before GitHub does. A key that isn't valid where it's used (such as `timeout-minutes` on a composite action step) stops the runner loading the action, and nothing else flags it until a run fails. It is recommended, so `verifyx init` preselects it and `verifyx all` runs it.
+
+- **Files**: `.github/workflows/*.{yml,yaml}` are validated as workflows; `.github/actions/**/action.{yml,yaml}` and a root `action.{yml,yaml}` as action metadata. With none of these, the check reports skipped.
+- **Schemas**: the SchemaStore [`github-workflow`](https://json.schemastore.org/github-workflow.json) and [`github-action`](https://json.schemastore.org/github-action.json) schemas (Apache-2.0), vendored into the package under `schemas/`. Validation is pure JavaScript ([ajv](https://ajv.js.org) and [yaml](https://eemeli.org/yaml/)), cross-platform and makes no network requests.
+- **Path filters**: each `paths` / `paths-ignore` glob under `on.push`, `on.pull_request` and `on.pull_request_target` must match at least one file in the repository (`git ls-files`, plus untracked files that aren't ignored), so a typo'd filter fails instead of silently never firing. Globs use GitHub's [filter pattern](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#filter-pattern-cheat-sheet) semantics: `*` doesn't cross `/`, `**` does, `?` and `+` quantify the preceding character, and a bare directory such as `docs` matches no files (use `docs/**`). A `!` negated glob must exclude at least one file the earlier globs matched. Globs containing `${{` are skipped, as is this part of the check outside a git repository.
+- **Output**: each problem prints `file:line:col`, the path in the document, the message and the schema rule that failed. Where the schema allows alternatives (a job is either a normal or a reusable-workflow job), the errors come from the alternative the file most likely meant, not from every alternative.
+
+```
+.github/actions/setup/action.yml:10:7 runs.steps[1]: unexpected key "timeout-minutes" (#/properties/steps/items/additionalProperties)
+```
+
+The schemas follow GitHub's documented syntax, which is sometimes stricter than the runner. For example, a `workflow_dispatch` input must declare its `type`.
+
 ## Scaffolding a project
 
 ### `verifyx init`
@@ -332,7 +352,7 @@ const lint = await getCheck('lint')?.runDefault()
 const unused = await getCheck('unused-code')?.runDefault({ maxWarnings: 5 })
 ```
 
-Native checks also expose a direct runner (`runComplexity`, `runComments`, `runHardcodedColors`, `runForbiddenStrings`); external checks (`lint`, `format`, `check-types`, `unused-code`, `circular-deps`, `duplicate-code`) have no standalone function and are run via the registry (`getCheck(name)?.runDefault()`) or the orchestrators.
+Native checks also expose a direct runner (`runComplexity`, `runComments`, `runHardcodedColors`, `runForbiddenStrings`, `runGithubActions`); external checks (`lint`, `format`, `check-types`, `unused-code`, `circular-deps`, `duplicate-code`) have no standalone function and are run via the registry (`getCheck(name)?.runDefault()`) or the orchestrators.
 
 Entry points:
 
@@ -344,6 +364,8 @@ Entry points:
 ## Attribution
 
 The `verify` runner, `comments`, `hardcoded-colors`, and `forbidden-strings` checks are ported from [staff0rd/assist](https://github.com/staff0rd/assist); the maintainability metrics originate there too. See [Steering the Vibe: Verify](https://staffordwilliams.com/blog/2025/12/14/steering-the-vibe-verify/) and [Complexity](https://staffordwilliams.com/blog/2026/02/22/steering-the-vibe-complexity/).
+
+The `github-actions` check validates against JSON schemas from [SchemaStore](https://github.com/SchemaStore/schemastore), vendored in `schemas/` under the Apache License 2.0 (see `schemas/README.md`).
 
 ## License
 

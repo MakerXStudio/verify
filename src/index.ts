@@ -12,6 +12,7 @@ export {
 export { type CommentsOptions, runComments } from './checks/comments.ts'
 export { runComplexity } from './checks/complexity.ts'
 export { runForbiddenStrings } from './checks/forbidden-strings.ts'
+export { type GithubActionsOptions, runGithubActions } from './checks/github-actions.ts'
 export { runHardcodedColors } from './checks/hardcoded-colors.ts'
 export { CHECKS, getCheck, recommendedChecks } from './checks/registry.ts'
 export type { Check, CheckKind, CheckMode, CheckResult, RunDefaultOptions } from './checks/types.ts'
