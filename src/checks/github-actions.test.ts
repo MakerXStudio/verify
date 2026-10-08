@@ -178,6 +178,16 @@ describe('runGithubActions path filters', () => {
     expect(runGithubActions({ cwd: dir }).ok).toBe(true)
   })
 
+  it('lets **/ match zero directories', () => {
+    write('package.json', ['{}'])
+    write('src/index.ts', ['export {}'])
+    write(
+      '.github/workflows/ci.yml',
+      workflowWithFilters(['  push:', "    paths: ['**/package.json', 'src/**/index.ts', 'src/**/app/*.ts']"]),
+    )
+    expect(runGithubActions({ cwd: dir }).ok).toBe(true)
+  })
+
   it('fails a glob that matches nothing, naming the workflow and glob', () => {
     write('.github/workflows/ci.yml', workflowWithFilters(['  push:', '    paths:', "      - 'src/**'", "      - 'scr/**'"]))
     expect(runGithubActions({ cwd: dir }).ok).toBe(false)

@@ -16,8 +16,15 @@ function githubFilterToRegex(pattern: string): RegExp {
       tokens.push(escapeRegex(pattern[++i] as string))
     } else if (char === '*') {
       const double = pattern[i + 1] === '*'
-      if (double) i++
-      tokens.push(double ? '.*' : '[^/]*')
+      if (!double) {
+        tokens.push('[^/]*')
+      } else if (pattern[i + 2] === '/') {
+        tokens.push('(?:.*/)?')
+        i += 2
+      } else {
+        tokens.push('.*')
+        i++
+      }
     } else if ((char === '?' || char === '+') && previous !== undefined && !previous.endsWith('*')) {
       tokens[tokens.length - 1] = `(?:${previous})${char}`
     } else if (char === '[' && pattern.indexOf(']', i + 1) > i + 1) {
