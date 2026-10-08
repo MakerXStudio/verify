@@ -15,6 +15,7 @@ describe('check registry', () => {
         'comments',
         'hardcoded-colors',
         'forbidden-strings',
+        'github-actions',
         'lint',
         'format',
         'check-types',
@@ -69,6 +70,10 @@ describe('check registry', () => {
       process.chdir(originalCwd)
       fs.rmSync(dir, { recursive: true, force: true })
     }
+  })
+
+  it('recommends the github-actions check as a native check', () => {
+    expect(getCheck('github-actions')).toMatchObject({ kind: 'native', recommended: true, scaffold: { script: 'verifyx github-actions' } })
   })
 
   it('returns undefined for unknown checks', () => {

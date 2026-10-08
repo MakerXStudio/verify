@@ -29,6 +29,7 @@
   },
   "files": [
     "dist",
+    "schemas",
     "templates"
   ],
   "type": "module",
@@ -54,15 +55,18 @@
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=default --reporter=junit --outputFile=test-results.xml",
     "audit": "better-npm-audit audit",
+    "schemas:refresh": "node scripts/refresh-github-schemas.mjs",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "ajv": "^8.20.0",
     "commander": "^15.0.0",
     "cross-spawn": "^7.0.6",
     "enquirer": "^2.4.1",
     "minimatch": "^10.2.5",
     "typescript": "^6.0.3",
-    "unbash": "^4.0.2"
+    "unbash": "^4.0.2",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@rollup/plugin-typescript": "^12.3.0",

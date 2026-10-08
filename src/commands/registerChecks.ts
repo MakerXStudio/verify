@@ -3,6 +3,7 @@ import { type Command, InvalidArgumentError } from 'commander'
 import { runComments } from '../checks/comments.ts'
 import { runComplexity } from '../checks/complexity.ts'
 import { runForbiddenStrings } from '../checks/forbidden-strings.ts'
+import { runGithubActions } from '../checks/github-actions.ts'
 import { runHardcodedColors } from '../checks/hardcoded-colors.ts'
 import { CHECKS } from '../checks/registry.ts'
 
@@ -75,6 +76,13 @@ export function registerChecks(program: Command): void {
     .description('Fail on disallowed JSON config values (rules from verify config)')
     .action(() => {
       finish(runForbiddenStrings().ok)
+    })
+
+  program
+    .command('github-actions')
+    .description('Schema-validate GitHub Actions workflows and composite/action metadata')
+    .action(() => {
+      finish(runGithubActions().ok)
     })
 
   // Mode flows via the VERIFY_MODE env / CI, not per-subcommand flags (which collide with the root's --check).
