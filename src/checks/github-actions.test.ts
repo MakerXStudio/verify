@@ -208,6 +208,13 @@ describe('runGithubActions path filters', () => {
     expect(output()).toContain('Total: 1 problem(s)')
   })
 
+  it('checks each negation against files still included after earlier negations', () => {
+    write('.github/workflows/ci.yml', workflowWithFilters(['  push:', "    paths: ['src/**', '!src/**', '!src/app/**']"]))
+    expect(runGithubActions({ cwd: dir }).ok).toBe(false)
+    expect(output()).toContain('on.push.paths[2]: path filter "!src/app/**"')
+    expect(output()).toContain('Total: 1 problem(s)')
+  })
+
   it('ignores filters on other events', () => {
     write('.github/workflows/ci.yml', workflowWithFilters(['  push:', "    branches: ['nope/**']", '  workflow_dispatch:']))
     expect(runGithubActions({ cwd: dir }).ok).toBe(true)

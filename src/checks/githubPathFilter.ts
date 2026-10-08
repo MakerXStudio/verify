@@ -41,14 +41,17 @@ function githubFilterToRegex(pattern: string): RegExp {
 
 function globsMatchingNothing(patterns: unknown[], files: readonly string[]): Array<{ index: number; glob: string }> {
   const dead: Array<{ index: number; glob: string }> = []
-  const positives: RegExp[] = []
+  const included = new Set<string>()
   patterns.forEach((glob, index) => {
     if (typeof glob !== 'string' || glob.includes('${{')) return
     const negated = glob.startsWith('!')
     const regex = githubFilterToRegex(negated ? glob.slice(1) : glob)
-    const candidates = negated ? files.filter((file) => positives.some((positive) => positive.test(file))) : files
-    if (!candidates.some((file) => regex.test(file))) dead.push({ index, glob })
-    if (!negated) positives.push(regex)
+    const matches = (negated ? [...included] : files).filter((file) => regex.test(file))
+    if (matches.length === 0) dead.push({ index, glob })
+    for (const file of matches) {
+      if (negated) included.delete(file)
+      else included.add(file)
+    }
   })
   return dead
 }
