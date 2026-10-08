@@ -1,6 +1,6 @@
 {
   "name": "@makerx/verify",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "A growing collection of code verifications that give AI coding agents back-pressure against writing hard-to-maintain code. Ships a CLI that orchestrates native + external checks by convention, plus a scaffolder for the checks and agent commands.",
   "keywords": [
     "ai",
