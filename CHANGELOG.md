@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.3.0](https://github.com/MakerXStudio/verify/compare/v1.2.0...v1.3.0) (2026-10-08)
+
+
+### Features
+
+* add native github-actions check ([3dde77f](https://github.com/MakerXStudio/verify/commit/3dde77ffa380f351f9e1694146d4d06c5a907a0d))
+* native github-actions check ([701ba01](https://github.com/MakerXStudio/verify/commit/701ba01dadde73281ef10a161e1fd1a359d99c7c))
+* reduce unused-code and duplicate-code false positives ([#18](https://github.com/MakerXStudio/verify/issues/18)) ([5d01501](https://github.com/MakerXStudio/verify/commit/5d01501a26add32e4a2f50854db56cd71f128600))
+* support max-warnings for unused code and duplicate code ([e089c85](https://github.com/MakerXStudio/verify/commit/e089c85ac841510b8f6322de92849863dea06e74))
+
+
+### Bug Fixes
+
+* check negations against included ([c13ac90](https://github.com/MakerXStudio/verify/commit/c13ac90ff2e43b63f2aff550a9d35e7223b0d33e))
+* **check-types:** guard tsc -b against emitting into source tree ([e9eff65](https://github.com/MakerXStudio/verify/commit/e9eff657cccc52e59ec80460b9918aeb5740c135))
+* **check-types:** guard tsc -b against emitting into source tree ([f111034](https://github.com/MakerXStudio/verify/commit/f111034c15ed52d02efc3eb58bc70aab6c57c09c))
+* **check-types:** use tsc -b when tsconfig has references ([3ca7168](https://github.com/MakerXStudio/verify/commit/3ca71681a9b97327ca3601fea5fa9885f1f0b274))
+* **check-types:** use tsc -b when tsconfig has references ([b8b3a1e](https://github.com/MakerXStudio/verify/commit/b8b3a1edfbf244ad806693ead3f2948892daa6cc))
+* cross-platform external check commands ([#17](https://github.com/MakerXStudio/verify/issues/17)) ([f432b9c](https://github.com/MakerXStudio/verify/commit/f432b9ca6f1603d38e9af9fc4c514bff71ea162d))
+* **init:** skip installed deps, isolate install failures, pre-select prompt defaults ([7c5f7da](https://github.com/MakerXStudio/verify/commit/7c5f7da6c039ef98617b70160d7b93c6672fac7e))
+* **init:** skip installed deps, isolate install failures, pre-select prompt defaults ([cb5849a](https://github.com/MakerXStudio/verify/commit/cb5849a64ee9d3c749992303a995050e1def3009))
+* let **/ match zero directories ([248cbb0](https://github.com/MakerXStudio/verify/commit/248cbb092126b7316e90bbe83aa3eb75cf0c3f1c))
+
 ## [1.2.0](https://github.com/MakerXStudio/verify/compare/v1.1.0...v1.2.0) (2026-07-09)
 
 
