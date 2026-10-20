@@ -1,12 +1,12 @@
 {
   "1240992": {
     "active": true,
-    "notes": "braces DoS via skott > depcheck > findup-sync > micromatch; no patched release. Dev-time tool on own source.",
-    "expiry": "2026-10-13"
+    "notes": "High in braces@3.0.3 via skott > depcheck > findup-sync > micromatch; no braces release is outside <=3.0.3 (latest 3.0.3), skott 0.35.12 and depcheck 1.4.7 are latest (npm's fix is a downgrade to skott 0.35.6). Dev-time tool on own source.",
+    "expiry": "2026-11-03"
   },
   "1241202": {
     "active": true,
-    "notes": "sprintf-js DoS via skott > depcheck > js-yaml@3 > argparse; no patched release. Dev-time tool on own source.",
-    "expiry": "2026-10-13"
+    "notes": "Moderate in sprintf-js@1.0.3 via skott > depcheck > js-yaml@3 > argparse; no sprintf-js release is outside <=1.1.3 (latest 1.1.3), argparse 1.0.10 pins ~1.0.2, skott 0.35.12 and depcheck 1.4.7 are latest. Dev-time tool on own source.",
+    "expiry": "2026-11-20"
   }
 }
