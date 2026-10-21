@@ -34,6 +34,8 @@ export type Check = {
     script: string
     /** Extra devDependencies the check needs, installed on opt-in. */
     devDeps?: string[]
+    /** Packages whose build scripts the check does not need; pnpm records them as declined at install (npm ignores this). */
+    declineBuilds?: string[]
   }
   /**
    * External checks only: the raw tool commands `verifyx eject <name>` inlines into `verify:<name>` (and

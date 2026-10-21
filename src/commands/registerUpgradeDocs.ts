@@ -2,6 +2,7 @@ import type { Command } from 'commander'
 
 import { type AgentTarget, writeAgentFiles } from '../scaffold/agentFiles.ts'
 import { ACTION_MARK, summarise } from '../scaffold/writeManaged.ts'
+import { detectPackageManager } from '../shared/packageManager.ts'
 
 /** `verifyx upgrade-docs` — refresh the verify skill and append the pointer to CLAUDE.md / AGENTS.md. */
 export function registerUpgradeDocs(program: Command): void {
@@ -15,7 +16,8 @@ export function registerUpgradeDocs(program: Command): void {
       if (opts.claude !== false) targets.push('claude')
       if (opts.agents !== false) targets.push('agents')
 
-      const results = writeAgentFiles(process.cwd(), targets)
+      const cwd = process.cwd()
+      const results = writeAgentFiles(cwd, targets, detectPackageManager(cwd))
       for (const result of results) {
         if (result.action === 'unchanged') continue
         console.log(`  ${ACTION_MARK[result.action]} ${result.path} (${result.action})`)

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { color } from '../shared/color.ts'
 import { resolveMode } from '../shared/mode.ts'
 import { emit } from '../shared/output.ts'
+import { detectPackageManager, PACKAGE_MANAGER_COMMANDS } from '../shared/packageManager.ts'
 import { appendArgv, formatArgv, formatShellCommand, runArgvCommand } from '../shared/spawn.ts'
 import { type MaxWarningsSupport, withinBudget } from './maxWarnings.ts'
 import type { Check, CheckMode, CheckResult, RunDefaultOptions } from './types.ts'
@@ -37,6 +38,8 @@ export type ExternalCheckSpec = {
   /** Command run in fix mode. When omitted, the check is not fixable and always runs `checkCommand`. */
   fixCommand?: readonly string[]
   devDeps: string[]
+  /** Dependency build scripts the tool does not need, declined when pnpm installs `devDeps`. */
+  declineBuilds?: string[]
   recommended?: boolean
   /** Docs / config reference for the underlying tool, surfaced when the check fails. */
   docs?: string
@@ -114,6 +117,7 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
     scaffold: {
       script: `verifyx ${spec.name}`,
       devDeps: spec.devDeps,
+      declineBuilds: spec.declineBuilds,
     },
     // `verifyx eject <name>` inlines these raw commands into the consumer's verify:* scripts. Lazy so
     // formatShellCommand's unserializable-arg throw fires on eject only, not when CHECKS is built at import.
@@ -125,7 +129,8 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
     },
     async runDefault({ extraArgs = [], maxWarnings }: RunDefaultOptions = {}): Promise<CheckResult> {
       if (!hasLocalBin(spec.bin)) {
-        console.log(color.dim(`${spec.name}: ${spec.bin} not installed — skipping (add it with \`npx verifyx init\`)`))
+        const cli = PACKAGE_MANAGER_COMMANDS[detectPackageManager(process.cwd())].runCli
+        console.log(color.dim(`${spec.name}: ${spec.bin} not installed — skipping (add it with \`${cli} init\`)`))
         return { name: spec.name, ok: true, skipped: true }
       }
       if (spec.canRun && !spec.canRun()) {

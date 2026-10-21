@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { PACKAGE_MANAGER_COMMANDS, type PackageManager } from '../shared/packageManager.ts'
 import { ensurePointer, type ManagedFileResult, writeManaged } from './writeManaged.ts'
 
 export type AgentTarget = 'claude' | 'agents'
@@ -10,11 +11,15 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url))
 // src/scaffold/*.ts and dist/scaffold/*.mjs both sit two levels below the package root, where templates/ lives.
 const TEMPLATES_DIR = path.join(moduleDir, '..', '..', 'templates')
 
-// A file already telling agents to run `npm run verify` is treated as covered — the pointer is not re-added.
-const POINTER_MARKER = 'npm run verify'
+const PLACEHOLDER = /\{\{(\w+)\}\}/g
 
-function readTemplate(relativePath: string): string {
-  return fs.readFileSync(path.join(TEMPLATES_DIR, ...relativePath.split('/')), 'utf-8')
+function renderTemplate(relativePath: string, values: Readonly<Record<string, string>>): string {
+  const template = fs.readFileSync(path.join(TEMPLATES_DIR, ...relativePath.split('/')), 'utf-8')
+  return template.replace(PLACEHOLDER, (placeholder, name: string) => {
+    const value = values[name]
+    if (value === undefined) throw new Error(`Unknown placeholder ${placeholder} in template ${relativePath}`)
+    return value
+  })
 }
 
 /**
@@ -24,20 +29,21 @@ function readTemplate(relativePath: string): string {
  * - a one-line pointer is appended to the matching instruction file (`CLAUDE.md` / `AGENTS.md`).
  *
  * Skills are CLI-owned (created/updated as a whole). The instruction files are user-owned, so the pointer is
- * only appended when absent and existing content is never rewritten.
+ * only appended when no pointer marker is present and existing content is never rewritten.
  */
-export function writeAgentFiles(cwd: string, targets: readonly AgentTarget[]): ManagedFileResult[] {
+export function writeAgentFiles(cwd: string, targets: readonly AgentTarget[], packageManager: PackageManager): ManagedFileResult[] {
   const results: ManagedFileResult[] = []
-  const skill = readTemplate('skills/verify/SKILL.md')
-  const guidance = readTemplate('verify-guidance.md')
+  const { runGate, runCli, pointerMarkers } = PACKAGE_MANAGER_COMMANDS[packageManager]
+  const skill = renderTemplate('skills/verify/SKILL.md', { runGate, runCli })
+  const guidance = renderTemplate('verify-guidance.md', { runGate, runCli })
 
   if (targets.includes('claude')) {
     writeManaged(path.join(cwd, '.claude', 'skills', 'verify', 'SKILL.md'), skill, results)
-    ensurePointer(path.join(cwd, 'CLAUDE.md'), guidance, POINTER_MARKER, results)
+    ensurePointer(path.join(cwd, 'CLAUDE.md'), guidance, pointerMarkers, results)
   }
   if (targets.includes('agents')) {
     writeManaged(path.join(cwd, '.agent-skills', 'verify', 'SKILL.md'), skill, results)
-    ensurePointer(path.join(cwd, 'AGENTS.md'), guidance, POINTER_MARKER, results)
+    ensurePointer(path.join(cwd, 'AGENTS.md'), guidance, pointerMarkers, results)
   }
 
   results.sort((a, b) => a.path.localeCompare(b.path))

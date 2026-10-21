@@ -19,15 +19,17 @@ What makes it worth wiring in:
 Install it as a **dev dependency** so the version is pinned in `package.json`, so the exact same tool runs on your machine and in CI/CD:
 
 ```sh
-npm install --save-dev @makerx/verify
+npm install --save-dev @makerx/verify   # npm
+pnpm add -D @makerx/verify              # pnpm (add -w at a workspace root)
 ```
 
-Requires Node.js >= 24. Invoke it via an npm script or `npx verifyx`.
+Requires Node.js >= 24. Invoke it via a package.json script, `npx verifyx` (npm) or `pnpm exec verifyx` (pnpm).
 
 The quickest way to wire it into a project:
 
 ```sh
-npx verifyx init
+npx verifyx init         # npm
+pnpm exec verifyx init   # pnpm (needs pnpm 11.26+ or 12.4+)
 ```
 
 > [!NOTE]
@@ -39,6 +41,16 @@ npx verifyx init
 > (a nod to the fact it **fixes** as well as verifies) makes every invocation (`npx verifyx`, npm scripts,
 > and a typed `verifyx`) work identically on macOS, Linux, and Windows. Your npm **script** can still be named
 > `verify` (that's a script lookup, not command resolution), so `npm run verify` works everywhere.
+
+## Package managers
+
+verifyx works with npm and pnpm, and uses the project's package manager to run scripts, install tools and write agent docs. It looks in the project directory, then its parents, and goes by the first of these it finds:
+
+1. `devEngines.packageManager` in `package.json`
+2. `packageManager` in `package.json`, e.g. `"pnpm@11.26.0"`
+3. a lockfile: `pnpm-lock.yaml` or `pnpm-workspace.yaml` for pnpm, `package-lock.json` for npm
+
+On pnpm, checks run with `pnpm run`, and skip pnpm's dependency check so parallel checks never install mid-run. Run `pnpm verify` to have pnpm check dependencies once before verifyx starts.
 
 ## How `verifyx` decides what to run
 
@@ -130,7 +142,7 @@ Flags on the bare `verifyx` command:
 
 External checks spawn their tool and **skip gracefully when it is not installed**; `verifyx init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verifyx` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
 
-Because checks are named for their function, **on failure** an external check prints the tool it used, the exact argv it ran, and a docs link, so you (or an agent) can add the tool's config (e.g. `knip.json`) without guessing. On success it prints nothing (output is buffered and flushed only on failure, to keep runs quiet and cheap). If you override a check with your own `verify:<name>` script, a failure shows that `npm run verify:<name>` was what ran.
+Because checks are named for their function, **on failure** an external check prints the tool it used, the exact argv it ran, and a docs link, so you (or an agent) can add the tool's config (e.g. `knip.json`) without guessing. On success it prints nothing (output is buffered and flushed only on failure, to keep runs quiet and cheap). If you override a check with your own `verify:<name>` script, a failure shows the command that ran (`npm run verify:<name>` or `pnpm run verify:<name>`).
 
 **Passing extra arguments through.** When you run an external check directly, anything after `--` is forwarded as literal argv entries to the underlying tool, so you can tweak an invocation without ejecting it: `verifyx circular-deps -- src/index.ts` asks skott to start at that file, while `verifyx lint -- --quiet` passes `--quiet` to oxlint. With no entrypoint, skott scans the current project, so `verifyx init` scaffolds the cross-platform default `verifyx circular-deps` without a shell glob.
 
@@ -264,9 +276,9 @@ verifyx init
 It first asks how `verify` should run: **run all built-in checks** (`verifyx all`, no `verify:*` scripts) or **pick specific checks** to wire up. Then you multi-select **agent targets** (Claude and/or other agents), and, if you chose to pick, the **checks**. After that it:
 
 - writes the selected `verify:*` scripts to `package.json` (never clobbering existing ones),
-- installs the external checks' tools as `--save-dev`, **skipping any already declared in `package.json` or present in `node_modules`** (so an existing `typescript`/`oxlint` is never re-installed or version-bumped). If the install hits a conflict (e.g. a peer-dependency clash), it isolates the failing package(s), installs the rest, and reports what to install manually at the end instead of aborting,
+- installs the external checks' tools as devDependencies with the project's package manager, **skipping any already declared in `package.json` or present in `node_modules`** (so an existing `typescript`/`oxlint` is never re-installed or version-bumped). On npm, if the install hits a conflict (e.g. a peer-dependency clash), it isolates the failing package(s), installs the rest, and reports what to install manually at the end instead of aborting (for pnpm, see [On pnpm](#on-pnpm)),
 - writes the **`verify` skill**: the same `SKILL.md` to `.claude/skills/verify/` (Claude) and `.agent-skills/verify/` (cross-vendor), so the integration is identical everywhere,
-- appends a one-line pointer to `CLAUDE.md` / `AGENTS.md` (only if not already present; existing content is never rewritten),
+- appends a one-line pointer to `CLAUDE.md` / `AGENTS.md` (only if not already present; existing content is never rewritten). Both use the project's command (`npm run verify` or `pnpm verify`),
 - if `unused-code` is selected, adds the other external tools (`oxlint`/`oxfmt`/`skott`/`jscpd`) to knip's `ignoreDependencies` (verifyx runs them at runtime, so knip can't see them and would otherwise report them as unused), and adds system binaries your scripts invoke (`uv`, `az`, `python`, `terraform`, …) that knip's own global list doesn't cover to `ignoreBinaries`. Merged into `knip.json` or `package.json#knip` (created if neither exists), adding only what's missing; a code-based `knip.ts`/`knip.js` is left for you to edit.
 
 The skill auto-triggers on "verify"/"run checks", so agents run the checks proactively; the pointer reinforces it for tools that read `CLAUDE.md`/`AGENTS.md` as standing instructions.
@@ -275,6 +287,11 @@ Options:
 
 - `--defaults-only`: the non-interactive form of the "run all built-in checks" choice. Does **not** write `verify:*` scripts; wires the top-level `verify` script to `verifyx all` so it runs every built-in (still installs opted-in tools and writes the skill + pointer).
 - `--yes`: non-interactive; use `--select <name>` (repeatable), `--no-claude`, `--agents`.
+
+#### On pnpm
+
+- init needs pnpm 11.26+ or 12.4+, and stops before changing anything on an older version.
+- pnpm 11+ stops an install when a dependency has an install script (such as a native build) that the project hasn't allowed or blocked under `allowBuilds` in `pnpm-workspace.yaml`. init blocks the one it knows about: `@parcel/watcher`, which skott pulls in but doesn't need.
 
 ### `verifyx upgrade-docs`
 
@@ -334,7 +351,26 @@ jobs:
       - run: npm run verify
 ```
 
-`npm run verify` exits non-zero on the first failing check (failing the job), and its buffered output is flushed so the log shows exactly what failed and how to fix it. To force a mode regardless of environment, use `verifyx --check` or `verifyx --fix`.
+The same job on pnpm (`pnpm/action-setup` reads the version from `packageManager`):
+
+```yaml
+name: verify
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+```
+
+`npm run verify` (or `pnpm verify`) exits non-zero on the first failing check (failing the job), and its buffered output is flushed so the log shows exactly what failed and how to fix it. To force a mode regardless of environment, use `verifyx --check` or `verifyx --fix`.
 
 ## Programmatic API
 

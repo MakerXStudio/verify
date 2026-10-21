@@ -2,10 +2,9 @@ import { CHECKS } from '../checks/registry.ts'
 import { color, paintRed } from '../shared/color.ts'
 import { resolveMode } from '../shared/mode.ts'
 import { installConsoleCapture, runCaptured } from '../shared/output.ts'
-import { runShellCommand } from '../shared/spawn.ts'
 import { type MeasureRecord, printMeasureTable } from './measure.ts'
 import { reportOutcomes } from './report.ts'
-import { entryCheckName, resolveEntries, resolveOverride, selectEntries } from './resolveEntries.ts'
+import { entryCheckName, resolveEntries, resolveOverride, runEntryCommand, selectEntries, type VerifyEntry } from './resolveEntries.ts'
 import { resolveTestEntry, TEST_CHECK_NAME } from './tests.ts'
 
 export type RunAllOptions = { measure?: boolean; verbose?: boolean; tests?: boolean }
@@ -16,10 +15,10 @@ type Task = { name: string; note?: string; run: () => Promise<boolean> }
 function buildTasks(opts: RunAllOptions): Task[] {
   const entries = resolveEntries()
   const mode = resolveMode()
-  const spawn = (name: string, command: string, cwd: string, note?: string): Task => ({
-    name,
+  const spawn = (entry: VerifyEntry, note: string): Task => ({
+    name: entry.name,
     note,
-    run: async () => (await runShellCommand(command, { cwd, quiet: true })) === 0,
+    run: async () => (await runEntryCommand(entry)) === 0,
   })
 
   const tasks: Task[] = CHECKS.map((check) => {
@@ -29,7 +28,7 @@ function buildTasks(opts: RunAllOptions): Task[] {
       name: check.name,
       note: 'overridden',
       run: async () => {
-        const ok = (await runShellCommand(override.command, { cwd: override.cwd, quiet: true })) === 0
+        const ok = (await runEntryCommand(override)) === 0
         if (!ok) console.error(color.dim(`↳ ${check.name}: ran \`${override.command}\` (override)`))
         return ok
       },
@@ -40,11 +39,11 @@ function buildTasks(opts: RunAllOptions): Task[] {
   for (const entry of selectEntries(entries, mode)) {
     const check = entryCheckName(entry.name)
     if (builtinNames.has(check) || check === TEST_CHECK_NAME) continue
-    tasks.push(spawn(entry.name, entry.command, entry.cwd, 'custom'))
+    tasks.push(spawn(entry, 'custom'))
   }
 
   const testEntry = resolveTestEntry({ noTests: opts.tests === false })
-  if (testEntry) tasks.push(spawn(testEntry.name, testEntry.command, testEntry.cwd, 'tests'))
+  if (testEntry) tasks.push(spawn(testEntry, 'tests'))
   return tasks
 }
 

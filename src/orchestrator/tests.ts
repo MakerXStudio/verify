@@ -1,4 +1,4 @@
-import { loadPackageScripts, type VerifyEntry } from './resolveEntries.ts'
+import { loadPackageScripts, scriptEntry, type VerifyEntry } from './resolveEntries.ts'
 
 /** The `verify:*` check name the tests step owns, so it isn't also run in the normal batch. */
 export const TEST_CHECK_NAME = 'test'
@@ -6,7 +6,7 @@ export const TEST_CHECK_NAME = 'test'
 export type TestsOptions = { noTests?: boolean }
 
 /**
- * Which npm script the automatic tests step runs. Locally it prefers an explicit `verify:test`, falling back
+ * Which package.json script the automatic tests step runs. Locally it prefers an explicit `verify:test`, falling back
  * to the standard `test` script. On CI it runs only `test:ci` (CI usually needs a different invocation, e.g.
  * emitting junit.xml), so a plain `test` never runs there. Returns null when no applicable script exists.
  */
@@ -25,5 +25,5 @@ export function resolveTestEntry(opts: TestsOptions = {}): VerifyEntry | null {
   if (!loaded) return null
   const script = resolveTestScript(loaded.scripts, !!process.env.CI)
   if (!script) return null
-  return { name: script, command: `npm run ${script}`, cwd: loaded.dir }
+  return scriptEntry(script, loaded.dir)
 }
