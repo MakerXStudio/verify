@@ -146,7 +146,7 @@ export function registerInit(program: Command): void {
       let install: InstallReport | undefined
       if (result.devDeps.length > 0) {
         console.log(color.dim(`\nResolving ${result.devDeps.length} devDependenc(ies): ${result.devDeps.join(', ')}`))
-        install = await installDevDeps(result.devDeps, cwd, { packageManager: manager, declineBuilds: result.declineBuilds })
+        install = await installDevDeps(result.devDeps, cwd, { packageManager: manager, pnpmDenyBuilds: result.pnpmDenyBuilds })
         reportInstall(install, manager)
       }
 

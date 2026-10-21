@@ -7,8 +7,8 @@ type ScriptCommand = { command: string; env?: Record<string, string> }
 
 export type PackageManagerCommands = {
   runScript: (script: string) => ScriptCommand
-  /** `declineBuilds` lists packages whose build scripts must not run; npm ignores it. */
-  addDevDependencies: (deps: readonly string[], declineBuilds?: readonly string[]) => string[]
+  /** `pnpmDenyBuilds` lists packages whose build scripts pnpm should deny. */
+  addDevDependencies: (deps: readonly string[], pnpmDenyBuilds?: readonly string[]) => string[]
   /** Doc string: run the verify gate. */
   runGate: string
   /** Doc string: run the verifyx CLI. */
@@ -28,12 +28,12 @@ export const PACKAGE_MANAGER_COMMANDS: Record<PackageManager, PackageManagerComm
   pnpm: {
     // Children of a parallel run must not check (and maybe install) dependencies; the outer `pnpm verify` already did.
     runScript: (script) => ({ command: `pnpm run ${script}`, env: { pnpm_config_verify_deps_before_run: 'false' } }),
-    addDevDependencies: (deps, declineBuilds = []) => [
+    addDevDependencies: (deps, pnpmDenyBuilds = []) => [
       'pnpm',
       'add',
       '-D',
       '--ignore-workspace-root-check',
-      ...declineBuilds.map((pkg) => `--allow-build=!${pkg}`),
+      ...pnpmDenyBuilds.map((pkg) => `--allow-build=!${pkg}`),
       ...deps,
     ],
     runGate: 'pnpm verify',

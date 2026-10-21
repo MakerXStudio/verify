@@ -62,11 +62,11 @@ describe('applyInit', () => {
     expect(result.devDeps).toEqual(expect.arrayContaining(['knip', 'jscpd', 'skott']))
   })
 
-  it("collects the selected checks' declined builds, and none when no selected check declines any", () => {
-    expect(applyInit({ cwd: dir, checks: ['circular-deps', 'unused-code'], targets: [], defaultsOnly: false }).declineBuilds).toEqual([
+  it("collects the selected checks' denied builds, and none when no selected check denies any", () => {
+    expect(applyInit({ cwd: dir, checks: ['circular-deps', 'unused-code'], targets: [], defaultsOnly: false }).pnpmDenyBuilds).toEqual([
       '@parcel/watcher',
     ])
-    expect(applyInit({ cwd: dir, checks: ['unused-code', 'complexity'], targets: [], defaultsOnly: false }).declineBuilds).toEqual([])
+    expect(applyInit({ cwd: dir, checks: ['unused-code', 'complexity'], targets: [], defaultsOnly: false }).pnpmDenyBuilds).toEqual([])
   })
 
   it('does not clobber an existing verify:* script', () => {

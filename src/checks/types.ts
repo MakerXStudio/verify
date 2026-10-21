@@ -34,8 +34,15 @@ export type Check = {
     script: string
     /** Extra devDependencies the check needs, installed on opt-in. */
     devDeps?: string[]
-    /** Packages whose build scripts the check does not need; pnpm records them as declined at install (npm ignores this). */
-    declineBuilds?: string[]
+    /**
+     * Dependencies of `devDeps` that run a build script on install, but that the check works without. For example,
+     * skott depends on `@parcel/watcher`, which compiles native code.
+     *
+     * pnpm 11+ fails an install until each such build script is allowed or denied. So on pnpm, `verifyx init` denies
+     * these by adding `'@parcel/watcher': false` under `allowBuilds` in `pnpm-workspace.yaml`. If the project already
+     * allows or denies the package, init leaves it alone.
+     */
+    pnpmDenyBuilds?: string[]
   }
   /**
    * External checks only: the raw tool commands `verifyx eject <name>` inlines into `verify:<name>` (and

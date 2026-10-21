@@ -38,8 +38,8 @@ export type ExternalCheckSpec = {
   /** Command run in fix mode. When omitted, the check is not fixable and always runs `checkCommand`. */
   fixCommand?: readonly string[]
   devDeps: string[]
-  /** Dependency build scripts the tool does not need, declined when pnpm installs `devDeps`. */
-  declineBuilds?: string[]
+  /** Packages whose build scripts `init` denies on pnpm. See `Check['scaffold']` for why. */
+  pnpmDenyBuilds?: string[]
   recommended?: boolean
   /** Docs / config reference for the underlying tool, surfaced when the check fails. */
   docs?: string
@@ -117,7 +117,7 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
     scaffold: {
       script: `verifyx ${spec.name}`,
       devDeps: spec.devDeps,
-      declineBuilds: spec.declineBuilds,
+      pnpmDenyBuilds: spec.pnpmDenyBuilds,
     },
     // `verifyx eject <name>` inlines these raw commands into the consumer's verify:* scripts. Lazy so
     // formatShellCommand's unserializable-arg throw fires on eject only, not when CHECKS is built at import.

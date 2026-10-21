@@ -20,8 +20,8 @@ export type InstallReport = {
 export type InstallOptions = {
   /** Defaults to the manager detected from `cwd`. */
   packageManager?: PackageManager
-  /** Packages whose build scripts pnpm should record as declined (npm ignores them). */
-  declineBuilds?: readonly string[]
+  /** Packages whose build scripts pnpm should deny under `allowBuilds`. */
+  pnpmDenyBuilds?: readonly string[]
   run?: Runner
 }
 
@@ -69,7 +69,7 @@ function isVersionKeyFor(key: string, pkg: string): boolean {
 }
 
 /**
- * A version-keyed `true` in `allowBuilds` counts as decided, since the decline flag would revoke it; a version-keyed
+ * A version-keyed `true` in `allowBuilds` counts as decided, since the deny flag would revoke it; a version-keyed
  * `false` does not, as it covers one version. A non-boolean value is not a decision. pnpm 11+ ignores
  * `onlyBuiltDependencies` and `ignoredBuiltDependencies`.
  */
@@ -97,14 +97,14 @@ async function installWithNpm(toInstall: string[], cwd: string, run: Runner): Pr
  * pnpm: one batch only. A failed batch has usually written every dep already (e.g. it stopped on an unapproved build),
  * and every later `pnpm add` fails the same way, so a per-package retry would only repeat the failure.
  */
-async function installWithPnpm(toInstall: string[], cwd: string, declineBuilds: readonly string[], run: Runner): Promise<Outcome> {
-  const argv = PACKAGE_MANAGER_COMMANDS.pnpm.addDevDependencies(toInstall, undecidedBuilds(declineBuilds, cwd))
+async function installWithPnpm(toInstall: string[], cwd: string, pnpmDenyBuilds: readonly string[], run: Runner): Promise<Outcome> {
+  const argv = PACKAGE_MANAGER_COMMANDS.pnpm.addDevDependencies(toInstall, undecidedBuilds(pnpmDenyBuilds, cwd))
   return (await run(argv, { cwd })) === 0 ? { installed: toInstall, failed: [] } : { installed: [], failed: toInstall }
 }
 
 /** Install the devDeps not already present. Failures are reported instead of aborting `init`. */
 export async function installDevDeps(devDeps: readonly string[], cwd: string, options: InstallOptions = {}): Promise<InstallReport> {
-  const { packageManager = detectPackageManager(cwd), declineBuilds = [], run = runArgvCommand } = options
+  const { packageManager = detectPackageManager(cwd), pnpmDenyBuilds = [], run = runArgvCommand } = options
   const declared = declaredDeps(cwd)
   const skipped: string[] = []
   const toInstall: string[] = []
@@ -113,6 +113,6 @@ export async function installDevDeps(devDeps: readonly string[], cwd: string, op
   if (toInstall.length === 0) return { skipped, installed: [], failed: [] }
 
   const outcome =
-    packageManager === 'pnpm' ? await installWithPnpm(toInstall, cwd, declineBuilds, run) : await installWithNpm(toInstall, cwd, run)
+    packageManager === 'pnpm' ? await installWithPnpm(toInstall, cwd, pnpmDenyBuilds, run) : await installWithNpm(toInstall, cwd, run)
   return { skipped, ...outcome }
 }

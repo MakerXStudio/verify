@@ -87,7 +87,7 @@ export const CHECKS: Check[] = [
     bin: 'skott',
     checkCommand: ['skott', '--displayMode=raw', '--showCircularDependencies', '--exitCodeOnCircularDependencies=1'],
     devDeps: ['skott'],
-    declineBuilds: ['@parcel/watcher'],
+    pnpmDenyBuilds: ['@parcel/watcher'],
     docs: 'https://github.com/antoine-coulon/skott',
   }),
   defineExternalCheck({

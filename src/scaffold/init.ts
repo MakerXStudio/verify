@@ -24,22 +24,22 @@ export type InitResult = {
   addedScripts: string[]
   /** devDependencies the selected external checks need (deduped). */
   devDeps: string[]
-  /** Dependency builds the selected checks decline (deduped). */
-  declineBuilds: string[]
+  /** Packages whose build scripts the selected checks deny on pnpm (deduped). */
+  pnpmDenyBuilds: string[]
   agentFiles: ManagedFileResult[]
 }
 
 /** Pure scaffolding step: write package.json scripts + agent files, and report the devDeps to install. */
 export function applyInit(opts: InitOptions): InitResult {
   const devDeps: string[] = []
-  const declineBuilds: string[] = []
+  const pnpmDenyBuilds: string[] = []
   const scripts: Record<string, string> = {}
 
   for (const name of opts.checks) {
     const check = getCheck(name)
     if (!check) continue
     if (check.scaffold.devDeps) devDeps.push(...check.scaffold.devDeps)
-    if (check.scaffold.declineBuilds) declineBuilds.push(...check.scaffold.declineBuilds)
+    if (check.scaffold.pnpmDenyBuilds) pnpmDenyBuilds.push(...check.scaffold.pnpmDenyBuilds)
     if (!opts.defaultsOnly) scripts[`verify:${name}`] = check.scaffold.script
   }
 
@@ -58,5 +58,5 @@ export function applyInit(opts: InitOptions): InitResult {
     ensureKnipIgnores(opts.cwd, [...new Set(toolDeps)], agentFiles, detectSystemBinaries(opts.cwd))
   }
 
-  return { addedScripts, devDeps: [...new Set(devDeps)], declineBuilds: [...new Set(declineBuilds)], agentFiles }
+  return { addedScripts, devDeps: [...new Set(devDeps)], pnpmDenyBuilds: [...new Set(pnpmDenyBuilds)], agentFiles }
 }

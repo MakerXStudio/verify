@@ -82,9 +82,9 @@ describe('installDevDeps (npm)', () => {
     ])
   })
 
-  it('passes no decline flags to npm', async () => {
+  it('passes no deny flags to npm', async () => {
     const run = fakeRunner()
-    await installDevDeps(['skott'], dir, { ...npm(run), declineBuilds: ['@parcel/watcher'] })
+    await installDevDeps(['skott'], dir, { ...npm(run), pnpmDenyBuilds: ['@parcel/watcher'] })
 
     expect(run.commands).toEqual([['npm', 'install', '--save-dev', 'skott']])
   })
@@ -92,10 +92,10 @@ describe('installDevDeps (npm)', () => {
 
 describe('installDevDeps (pnpm)', () => {
   const ADD = ['pnpm', 'add', '-D', '--ignore-workspace-root-check']
-  const DECLINE = '--allow-build=!@parcel/watcher'
+  const DENY = '--allow-build=!@parcel/watcher'
 
   const pnpm = (run: Runner, cwd = dir) =>
-    installDevDeps(['skott', 'knip'], cwd, { packageManager: 'pnpm', declineBuilds: ['@parcel/watcher'], run })
+    installDevDeps(['skott', 'knip'], cwd, { packageManager: 'pnpm', pnpmDenyBuilds: ['@parcel/watcher'], run })
 
   const writeWorkspace = (yaml: string, at = dir) => fs.writeFileSync(path.join(at, 'pnpm-workspace.yaml'), yaml)
 
@@ -106,12 +106,12 @@ describe('installDevDeps (pnpm)', () => {
     return run.commands[0]
   }
 
-  it('runs one add with the workspace-root flag and the decline flag', async () => {
+  it('runs one add with the workspace-root flag and the deny flag', async () => {
     const run = fakeRunner()
     const report = await pnpm(run)
 
     expect(report).toEqual({ skipped: [], installed: ['skott', 'knip'], failed: [] })
-    expect(run.commands).toEqual([[...ADD, DECLINE, 'skott', 'knip']])
+    expect(run.commands).toEqual([[...ADD, DENY, 'skott', 'knip']])
   })
 
   it('does not retry per package after a failed batch', async () => {
@@ -122,8 +122,8 @@ describe('installDevDeps (pnpm)', () => {
     expect(report).toEqual({ skipped: [], installed: [], failed: ['skott', 'knip'] })
   })
 
-  it('declines the build when there is no pnpm-workspace.yaml', async () => {
-    expect(await argvFor()).toContain(DECLINE)
+  it('denies the build when there is no pnpm-workspace.yaml', async () => {
+    expect(await argvFor()).toContain(DENY)
   })
 
   it.each([
@@ -135,7 +135,7 @@ describe('installDevDeps (pnpm)', () => {
     expect(await argvFor()).toEqual([...ADD, 'skott', 'knip'])
   })
 
-  it('leaves the decision alone when one version is approved and another declined', async () => {
+  it('leaves the decision alone when one version is approved and another denied', async () => {
     writeWorkspace("allowBuilds:\n  '@parcel/watcher@2.4.1': false\n  '@parcel/watcher@2.6.0': true\n")
     expect(await argvFor()).toEqual([...ADD, 'skott', 'knip'])
   })
@@ -145,12 +145,12 @@ describe('installDevDeps (pnpm)', () => {
     ['only in ignoredBuiltDependencies', "ignoredBuiltDependencies:\n  - '@parcel/watcher'\n"],
     ['a placeholder in allowBuilds', "allowBuilds:\n  '@parcel/watcher': set this to true or false\n"],
     ['a version-keyed entry with no version', "allowBuilds:\n  '@parcel/watcher@': true\n"],
-    ['declined only for another version', "allowBuilds:\n  '@parcel/watcher@2.4.1': false\n"],
+    ['denied only for another version', "allowBuilds:\n  '@parcel/watcher@2.4.1': false\n"],
     ['an entry for a different package', "allowBuilds:\n  '@parcel/watcher-wasm': true\n"],
     ['an unparseable file', 'allowBuilds: [\n'],
-  ])('declines the build when the package is %s', async (_, yaml) => {
+  ])('denies the build when the package is %s', async (_, yaml) => {
     writeWorkspace(yaml)
-    expect(await argvFor()).toContain(DECLINE)
+    expect(await argvFor()).toContain(DENY)
   })
 
   it('finds the workspace file from a sub-directory', async () => {
