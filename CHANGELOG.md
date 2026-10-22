@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0](https://github.com/MakerXStudio/verify/compare/v1.3.0...v1.4.0) (2026-10-22)
+
+
+### Features
+
+* add pnpm support ([d91e686](https://github.com/MakerXStudio/verify/commit/d91e686d94a5903a85935239c063dbc2980f6053))
+* add pnpm support ([1f0ba5e](https://github.com/MakerXStudio/verify/commit/1f0ba5e1b01b679bd5e7f26ac0b12fda628070f2))
+
 ## [1.3.0](https://github.com/MakerXStudio/verify/compare/v1.2.0...v1.3.0) (2026-10-08)
 
 
