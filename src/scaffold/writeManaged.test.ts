@@ -64,7 +64,7 @@ describe('ensurePointer', () => {
   it('creates the file with the block when missing', () => {
     const file = path.join(dir, 'CLAUDE.md')
     const results: ManagedFileResult[] = []
-    ensurePointer(file, block, '/verify', results)
+    ensurePointer(file, block, ['/verify'], results)
     expect(results[0]?.action).toBe('created')
     expect(fs.readFileSync(file, 'utf-8')).toBe(block)
   })
@@ -74,7 +74,17 @@ describe('ensurePointer', () => {
     const original = '# My project\n\nSome guidance mentioning /verify already.\n'
     fs.writeFileSync(file, original)
     const results: ManagedFileResult[] = []
-    ensurePointer(file, block, '/verify', results)
+    ensurePointer(file, block, ['/verify'], results)
+    expect(results[0]?.action).toBe('unchanged')
+    expect(fs.readFileSync(file, 'utf-8')).toBe(original)
+  })
+
+  it('leaves the file untouched when any one of several markers is present', () => {
+    const file = path.join(dir, 'CLAUDE.md')
+    const original = '# My project\n\nRun `pnpm run verify` before finishing.\n'
+    fs.writeFileSync(file, original)
+    const results: ManagedFileResult[] = []
+    ensurePointer(file, block, ['pnpm verify', 'pnpm run verify'], results)
     expect(results[0]?.action).toBe('unchanged')
     expect(fs.readFileSync(file, 'utf-8')).toBe(original)
   })
@@ -84,7 +94,7 @@ describe('ensurePointer', () => {
     const original = '# My project\n\nExisting instructions.\n'
     fs.writeFileSync(file, original)
     const results: ManagedFileResult[] = []
-    ensurePointer(file, block, '/verify', results)
+    ensurePointer(file, block, ['/verify'], results)
     expect(results[0]?.action).toBe('appended')
     const after = fs.readFileSync(file, 'utf-8')
     expect(after.startsWith(original)).toBe(true)
@@ -94,10 +104,10 @@ describe('ensurePointer', () => {
   it('is idempotent — a second call after appending is a no-op', () => {
     const file = path.join(dir, 'CLAUDE.md')
     fs.writeFileSync(file, '# My project\n')
-    ensurePointer(file, block, '/verify', [])
+    ensurePointer(file, block, ['/verify'], [])
     const afterFirst = fs.readFileSync(file, 'utf-8')
     const results: ManagedFileResult[] = []
-    ensurePointer(file, block, '/verify', results)
+    ensurePointer(file, block, ['/verify'], results)
     expect(results[0]?.action).toBe('unchanged')
     expect(fs.readFileSync(file, 'utf-8')).toBe(afterFirst)
   })

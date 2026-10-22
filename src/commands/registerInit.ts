@@ -5,8 +5,11 @@ import { CHECKS, recommendedChecks } from '../checks/registry.ts'
 import type { AgentTarget } from '../scaffold/agentFiles.ts'
 import { applyInit, type InitResult } from '../scaffold/init.ts'
 import { type InstallReport, installDevDeps } from '../scaffold/installDeps.ts'
+import { checkPnpmVersion } from '../scaffold/pnpmVersion.ts'
 import { ACTION_MARK } from '../scaffold/writeManaged.ts'
 import { color } from '../shared/color.ts'
+import { detectPackageManager, PACKAGE_MANAGER_COMMANDS, type PackageManager } from '../shared/packageManager.ts'
+import { captureArgvCommand } from '../shared/spawn.ts'
 
 export type Choice = { name: string; message: string; enabled?: boolean }
 
@@ -84,8 +87,18 @@ function report(result: InitResult, defaultsOnly: boolean): void {
   }
 }
 
+/** How to finish a failed install by hand. pnpm already prints the cause, so for pnpm this only points to that output. */
+function manualInstallAdvice(manager: PackageManager, failed: readonly string[]): string {
+  if (manager === 'pnpm') return " (see pnpm's output above)"
+  return (
+    `\n  init finished; the rest is wired up. Resolve these yourself — e.g. a peer-dependency conflict may need` +
+    `\n  a compatible version or --legacy-peer-deps. Install manually with:` +
+    `\n    ${PACKAGE_MANAGER_COMMANDS.npm.addDevDependencies(failed).join(' ')}`
+  )
+}
+
 /** Summarise the dependency install: what was skipped, installed, and — last, so it's the takeaway — what failed. */
-function reportInstall(install: InstallReport): void {
+function reportInstall(install: InstallReport, manager: PackageManager): void {
   if (install.skipped.length > 0) {
     console.log(color.dim(`\nSkipped ${install.skipped.length} already-installed devDependenc(ies): ${install.skipped.join(', ')}`))
   }
@@ -95,13 +108,15 @@ function reportInstall(install: InstallReport): void {
   if (install.failed.length > 0) {
     console.error(
       color.yellow(
-        `\n⚠ Failed to install ${install.failed.length} devDependenc(ies): ${install.failed.join(', ')}` +
-          `\n  init finished; the rest is wired up. Resolve these yourself — e.g. a peer-dependency conflict may need` +
-          `\n  a compatible version or --legacy-peer-deps. Install manually with:` +
-          `\n    npm install --save-dev ${install.failed.join(' ')}`,
+        `\n⚠ Failed to install ${install.failed.length} devDependenc(ies): ${install.failed.join(', ')}${manualInstallAdvice(manager, install.failed)}`,
       ),
     )
   }
+}
+
+async function pnpmBlocker(cwd: string): Promise<string | undefined> {
+  const check = checkPnpmVersion(await captureArgvCommand(['pnpm', '--version'], { cwd }))
+  return check.ok ? undefined : check.message
 }
 
 /** `verifyx init` — interactively scaffold checks + agent files into the current project. */
@@ -116,16 +131,28 @@ export function registerInit(program: Command): void {
     .option('--agents', 'also write .agent-skills/ files (non-interactive)')
     .action(async (opts: InitCliOptions) => {
       const cwd = process.cwd()
+      const manager = detectPackageManager(cwd)
+      const blocker = manager === 'pnpm' ? await pnpmBlocker(cwd) : undefined
+      if (blocker) {
+        console.error(color.yellow(blocker))
+        process.exitCode = 1
+        return
+      }
       const { checks, targets, defaultsOnly } = await resolveSelections(opts)
 
-      const result = applyInit({ cwd, checks, targets, defaultsOnly })
+      const result = applyInit({ cwd, checks, targets, defaultsOnly, packageManager: manager })
       report(result, defaultsOnly)
 
+      let install: InstallReport | undefined
       if (result.devDeps.length > 0) {
         console.log(color.dim(`\nResolving ${result.devDeps.length} devDependenc(ies): ${result.devDeps.join(', ')}`))
-        reportInstall(await installDevDeps(result.devDeps, cwd))
+        install = await installDevDeps(result.devDeps, cwd, { packageManager: manager, pnpmDenyBuilds: result.pnpmDenyBuilds })
+        reportInstall(install, manager)
       }
 
-      console.log(color.dim('\nRun `npm run verify` (or `npx verifyx`) to run your verifications.'))
+      const { runGate, runCli } = PACKAGE_MANAGER_COMMANDS[manager]
+      console.log(color.dim(`\nRun \`${runGate}\` (or \`${runCli}\`) to run your verifications.`))
+      // pnpm only: a failed add usually leaves every later `pnpm install` failing too.
+      if (manager === 'pnpm' && (install?.failed.length ?? 0) > 0) process.exitCode = 1
     })
 }

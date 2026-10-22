@@ -2,9 +2,13 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { entryCheckName, resolveEntries, resolveOverride, selectEntries, type VerifyEntry } from './resolveEntries.ts'
+const runShellCommand = vi.hoisted(() => vi.fn())
+
+vi.mock('../shared/spawn.ts', () => ({ runShellCommand }))
+
+import { entryCheckName, resolveEntries, resolveOverride, runEntryCommand, selectEntries, type VerifyEntry } from './resolveEntries.ts'
 
 function entry(name: string): VerifyEntry {
   return { name, command: `npm run ${name}`, cwd: '.' }
@@ -27,9 +31,46 @@ describe('resolveEntries', () => {
     expect(entries.find((e) => e.name === 'verify:a')?.command).toBe('npm run verify:a')
   })
 
+  it('builds npm entries with no env key', () => {
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { 'verify:a': 'x' } }))
+    fs.writeFileSync(path.join(dir, 'package-lock.json'), '{}')
+    expect(resolveEntries(dir)).toStrictEqual([{ name: 'verify:a', command: 'npm run verify:a', cwd: dir }])
+  })
+
+  it('builds pnpm entries that skip the per-run dependency check', () => {
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { 'verify:a': 'x' } }))
+    fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), '')
+    expect(resolveEntries(dir)).toEqual([
+      { name: 'verify:a', command: 'pnpm run verify:a', cwd: dir, env: { pnpm_config_verify_deps_before_run: 'false' } },
+    ])
+  })
+
+  it('detects the manager from the package.json directory, not the start directory', () => {
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { 'verify:a': 'x' } }))
+    fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), '')
+    // An npm signal between the start dir and the package.json dir, which a walk from the start dir would hit first.
+    fs.mkdirSync(path.join(dir, 'src'))
+    fs.writeFileSync(path.join(dir, 'src', 'package-lock.json'), '{}')
+    const nested = path.join(dir, 'src', 'deep')
+    fs.mkdirSync(nested)
+    expect(resolveEntries(nested)[0]).toMatchObject({ command: 'pnpm run verify:a', cwd: dir })
+  })
+
   it('returns [] when there are no verify:* scripts', () => {
     fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { build: 'x' } }))
     expect(resolveEntries(dir)).toEqual([])
+  })
+})
+
+describe('runEntryCommand', () => {
+  afterEach(() => runShellCommand.mockReset())
+
+  it('forwards the entry cwd and env to the shell runner, quietly', async () => {
+    runShellCommand.mockResolvedValueOnce(3)
+    const env = { pnpm_config_verify_deps_before_run: 'false' }
+    const code = await runEntryCommand({ name: 'verify:a', command: 'pnpm run verify:a', cwd: dir, env })
+    expect(code).toBe(3)
+    expect(runShellCommand).toHaveBeenCalledWith('pnpm run verify:a', { cwd: dir, env, quiet: true })
   })
 })
 

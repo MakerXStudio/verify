@@ -2,11 +2,24 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import type { CheckMode } from '../checks/types.ts'
+import { detectPackageManager, PACKAGE_MANAGER_COMMANDS } from '../shared/packageManager.ts'
+import { runShellCommand } from '../shared/spawn.ts'
 
 export type VerifyEntry = {
   name: string
   command: string
   cwd: string
+  /** Extra env for the child, merged over `process.env`. */
+  env?: Record<string, string>
+}
+
+export function scriptEntry(name: string, dir: string): VerifyEntry {
+  const { command, env } = PACKAGE_MANAGER_COMMANDS[detectPackageManager(dir)].runScript(name)
+  return env ? { name, command, cwd: dir, env } : { name, command, cwd: dir }
+}
+
+export function runEntryCommand(entry: VerifyEntry): Promise<number> {
+  return runShellCommand(entry.command, { cwd: entry.cwd, env: entry.env, quiet: true })
 }
 
 const VERIFY_PREFIX = 'verify:'
@@ -44,13 +57,13 @@ export function loadPackageScripts(cwd: string = process.cwd()): { scripts: Reco
   }
 }
 
-/** Collect the project's `verify:*` npm scripts as parallelisable entries, nearest package.json wins. */
+/** Collect the project's `verify:*` scripts as parallelisable entries, nearest package.json wins. */
 export function resolveEntries(cwd: string = process.cwd()): VerifyEntry[] {
   const loaded = loadPackageScripts(cwd)
   if (!loaded) return []
   return Object.keys(loaded.scripts)
     .filter((name) => name.startsWith(VERIFY_PREFIX))
-    .map((name) => ({ name, command: `npm run ${name}`, cwd: loaded.dir }))
+    .map((name) => scriptEntry(name, loaded.dir))
 }
 
 /**

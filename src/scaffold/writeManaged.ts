@@ -48,13 +48,13 @@ export function writeManaged(file: string, contents: string, results: ManagedFil
 
 /**
  * Ensure a user-owned file (CLAUDE.md / AGENTS.md) contains a pointer block. Creates the file with the block
- * when missing; appends the block when the file exists but does not already contain `marker`; otherwise leaves
- * the file untouched. Never rewrites existing content.
+ * when missing; appends the block when the file exists but contains none of `markers`; otherwise leaves the file
+ * untouched. Never rewrites existing content.
  */
-export function ensurePointer(file: string, block: string, marker: string, results: ManagedFileResult[]): void {
+export function ensurePointer(file: string, block: string, markers: readonly string[], results: ManagedFileResult[]): void {
   const existing = readIfExists(file)
   if (existing === null) return createFile(file, block, results)
-  if (existing.includes(marker)) {
+  if (markers.some((marker) => existing.includes(marker))) {
     results.push({ path: file, action: 'unchanged' })
     return
   }
