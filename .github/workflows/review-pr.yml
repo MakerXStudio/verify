@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   review:
-    uses: MakerXStudio/yoke/.github/workflows/review.yml@review-v0.17.2
+    uses: MakerXStudio/yoke/.github/workflows/review.yml@review-v0.17.4
     with:
       provider: litellm
       reviewer1-harness: claude
