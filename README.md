@@ -146,13 +146,13 @@ Because checks are named for their function, **on failure** an external check pr
 
 **Passing extra arguments through.** When you run an external check directly, anything after `--` is forwarded as literal argv entries to the underlying tool, so you can tweak an invocation without ejecting it: `verifyx circular-deps -- src/index.ts` asks skott to start at that file, while `verifyx lint -- --quiet` passes `--quiet` to oxlint. With no entrypoint, skott scans the current project, so `verifyx init` scaffolds the cross-platform default `verifyx circular-deps` without a shell glob.
 
-Each external check is configured through its **tool's own config file**, exactly as you would use that tool standalone:
+Each external check is configured through its **tool's own config file**, exactly as you would use that tool standalone. `unused-code`, `duplicate-code` and `circular-deps` also read a few named settings from your [verify config](#configuration), described under [External check settings](#external-check-settings) below.
 
 - `lint`: [`.oxlintrc.json`](https://oxc.rs/docs/guide/usage/linter.html)
 - `format`: [oxfmt configuration](https://oxc.rs)
 - `check-types`: your [`tsconfig.json`](https://www.typescriptlang.org/tsconfig)
 - `unused-code`: [`knip.json`](https://knip.dev/reference/configuration)
-- `circular-deps`: [skott options](https://github.com/antoine-coulon/skott)
+- `circular-deps`: skott has no config file, so its settings live in the verify config under `circularDeps`
 - `duplicate-code`: [`.jscpd.json` or `package.json#jscpd`](https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config)
 
 ### `--max-warnings`
@@ -167,6 +167,38 @@ verifyx unused-code --max-warnings 5
 verifyx duplicate-code --max-warnings 10
 ```
 
+The budget can live in your [verify config](#configuration) instead, as `unusedCode.maxWarnings` and `duplicateCode.maxWarnings`. `--max-warnings` on the command line wins over the config value.
+
+### External check settings
+
+`unused-code`, `duplicate-code` and `circular-deps` read named settings from your [verify config](#configuration). verifyx translates each one into the tool's own flags; there is no raw argument list in the config.
+
+```jsonc
+{
+  "unusedCode": { "maxWarnings": 226 },
+  "duplicateCode": {
+    "maxWarnings": 137,
+    "paths": ["app", "features", "scripts"],
+    "ignore": ["**/*.test.*", "**/generated/**"],
+  },
+  "circularDeps": {
+    "extensions": [".ts", ".tsx"],
+    "ignore": ["**/*.test.*", "features/logging/offline-provider.ts"],
+    "ignoreTypeImports": true,
+  },
+}
+```
+
+- `unusedCode.maxWarnings`: the findings budget, passed to knip as `--max-issues`. Everything else stays in `knip.json`.
+- `duplicateCode.maxWarnings`: the budget of distinct duplicated regions.
+- `duplicateCode.paths`: the directories jscpd scans. Replaces the default `src`.
+- `duplicateCode.ignore`: globs jscpd skips, one `--ignore` each. Replaces the default `**/*.test.*`, so list it again if you still want test files skipped. jscpd splits an ignore value on commas, so a brace glob such as `**/*.{test,spec}.*` does not work; list each glob separately.
+- `circularDeps.extensions`: the file extensions skott follows (`--fileExtensions`). Defaults to skott's own list.
+- `circularDeps.ignore`: globs skott leaves out of the graph, one `--ignorePattern` each.
+- `circularDeps.ignoreTypeImports`: when `true`, `import type` statements don't count as dependencies (`--no-trackTypeOnlyDependencies`).
+
+Args after `--` are still appended after the flags built from config. `lint`, `format` and `check-types` have no verify-config settings; their tool's config file covers everything.
+
 ### `complexity`
 
 ```sh
@@ -176,6 +208,18 @@ verifyx complexity --threshold 50 "src/**/*.ts"
 - `[pattern]`: glob, directory, or file. Defaults to `{src,server,shared}/**/*.ts`.
 - `--threshold <n>`: fail when any file's minimum maintainability index is below `n`.
 - `--ignore <glob>`: exclude files (repeatable; appended to the default `**/*test.ts*`).
+
+Each of these can live in your [verify config](#configuration) instead, under `complexity`: `threshold`, `pattern` and `ignore`. A value given on the command line wins over the config value.
+
+```jsonc
+{
+  "complexity": {
+    "threshold": 50,
+    "pattern": "{app,features}/**/*.{ts,tsx}",
+    "ignore": ["features/graphql/generated/**"],
+  },
+}
+```
 
 It parses your `.ts`/`.tsx` sources with the TypeScript compiler API and, for every function, computes three metrics: **cyclomatic complexity** (independent paths through the code), **Halstead volume** (a size measure derived from the operators and operands used), and **SLOC** (source lines of code, excluding blanks and comments). It then combines them into a single **maintainability index (MI)**, a 0–100 score where lower means harder to maintain:
 
@@ -200,11 +244,25 @@ Capable coding models (Opus 4.8 very much included) love to narrate their work: 
 - `--pushback`: reframe the failure message as back-pressure aimed at an AI agent (see below).
 - `--warn`: report the long-block violations without failing the run.
 - `--block-new-comments`: also fail on any comment on a changed line (vs `HEAD` locally, the PR base in CI; see below).
-- `--ignore <glob>`: exclude files (repeatable; the `--block-new-comments` gate also reads `comments.ignore` from your [verify config](#configuration)).
+- `--ignore <glob>`: exclude files (repeatable; appended to the default `**/*test.ts*`). Applies to both the long-block check and the `--block-new-comments` gate.
+
+Each of these can live in your [verify config](#configuration) instead, under `comments`: `maxLines`, `pattern`, `ignore`, `pushback`, `warn` and `blockNewComments`. A value given on the command line wins over the config value, and `--no-pushback`, `--no-warn` and `--no-block-new-comments` turn off a setting the config turned on.
+
+```jsonc
+{
+  "comments": {
+    "maxLines": 10,
+    "ignore": ["features/graphql/generated/**"],
+    "blockNewComments": true,
+  },
+}
+```
+
+`verifyx all` runs this check with pushback on unless the config sets `"pushback": false`.
 
 **`--pushback` is the clever bit.** An AI agent that hits a failing check will often take the path of least resistance and just delete or weaken the check to make the run pass. So rather than a dry error, the pushback message tells the agent that the _only_ sanctioned way to keep the comment is to prefix it with `context:`, and that doing so **pages a human to approve it**. Confronted with a real person's time on the line, the agent tends to reconsider and remove the low-value comment instead of gaming the gate. It is a small piece of prompt-engineering baked into a lint failure, and in practice it stops agents silencing the check far more reliably than a plain error does.
 
-If you want to go further and block **new** comments outright, override the `verify:comments` script and add `--block-new-comments`. That turns on a stricter, diff-based gate on top of the long-block check: any comment sitting on a changed line fails, whether you added or merely edited it. Machine directives (`eslint-disable`, `@ts-expect-error`, and friends) stay exempt, as does anything marked `context:`.
+If you want to go further and block **new** comments outright, set `comments.blockNewComments` in your verify config (or pass `--block-new-comments`). That turns on a stricter, diff-based gate on top of the long-block check: any comment sitting on a changed line fails, whether you added or merely edited it. Machine directives (`eslint-disable`, `@ts-expect-error`, and friends) stay exempt, as does anything marked `context:`.
 
 The "changed lines" are resolved per environment so the gate works the same locally and in CI. Locally it diffs the working tree against `HEAD` (your uncommitted changes). In CI (`CI` set) a clean checkout has nothing uncommitted, so it diffs against the **merge base with the PR base branch** instead, read from `GITHUB_BASE_REF` (GitHub Actions). Set `VERIFY_DIFF_BASE` to a ref to override the base explicitly; if no base can be resolved it falls back to `HEAD`. For CI, make sure the base branch is fetched (`actions/checkout` with `fetch-depth: 0`), or the merge base won't be found and the gate silently passes.
 
@@ -311,23 +369,116 @@ verifyx eject circular-deps   # verify:circular-deps → skott --displayMode=raw
 verifyx eject lint            # verify:lint → oxlint . AND verify:lint:fix → oxlint --fix .
 ```
 
+The ejected command includes the flags built from your [verify config](#configuration) (`circularDeps`, and `duplicateCode.paths` / `duplicateCode.ignore`), so it scans the same files as before. A `maxWarnings` budget is not carried over, because an ejected script no longer runs through `verifyx`.
+
 For a fixable check (`lint`, `format`) it writes both the base `verify:<name>` (check-mode) and the `verify:<name>:fix` variant, which is exactly the [fix-locally / check-in-CI](#fix-locally-check-in-ci) pairing `verifyx` already understands — so an ejected check keeps auto-fixing locally and only checking in CI. Ejecting **overwrites** the existing `verify:<name>` script (that's the point — it hands you the raw command to edit), and leaves every other script untouched. Only external checks can be ejected; native checks (`complexity`, `comments`, …) run in-process and have no shell command to hand over.
 
 ## Configuration
 
-The **native** checks that take persistent settings read them from a `verify.config.json` file, or a `verify` key in `package.json` (the standalone file wins if both are present). Each option is documented alongside its check above; collected here for reference:
+Built-in checks that take persistent settings read them from a `verify.config.json` file, or a `verify` key in `package.json` (the standalone file wins if both are present). Both `verifyx <check>` and `verifyx all` pick the settings up, so a check configured here needs no `verify:<name>` script.
 
 ```jsonc
+// verify.config.json
 {
-  "verify": {
-    "comments": { "ignore": ["**/*.generated.ts"] },
-    "hardcodedColors": { "root": "src", "ignore": ["**/tokens.ts"] },
-    "forbiddenStrings": [{ "file": "app.json", "paths": ["env.LOG_LEVEL"], "disallowed": "debug" }],
+  "complexity": {
+    "threshold": 50,
+    "pattern": "{app,features}/**/*.{ts,tsx}",
+    "ignore": ["features/graphql/generated/**"],
+  },
+  "comments": {
+    "maxLines": 10,
+    "pattern": "{app,features}/**/*.{ts,tsx}",
+    "ignore": ["**/*.generated.ts"],
+    "pushback": true,
+    "warn": false,
+    "blockNewComments": true,
+  },
+  "unusedCode": { "maxWarnings": 226 },
+  "duplicateCode": {
+    "maxWarnings": 137,
+    "paths": ["app", "features", "scripts"],
+    "ignore": ["**/*.test.*", "**/generated/**"],
+  },
+  "circularDeps": {
+    "extensions": [".ts", ".tsx"],
+    "ignore": ["**/*.test.*", "features/logging/offline-provider.ts"],
+    "ignoreTypeImports": true,
+  },
+  "hardcodedColors": { "root": "src", "ignore": ["**/tokens.ts"] },
+  "forbiddenStrings": [{ "file": "app.json", "paths": ["env.LOG_LEVEL"], "disallowed": "debug" }],
+}
+```
+
+In `package.json` the same object goes under a `verify` key.
+
+| Key                              | Type       | Default                       | Equivalent flag        |
+| -------------------------------- | ---------- | ----------------------------- | ---------------------- |
+| `complexity.threshold`           | number     | `50`                          | `--threshold <n>`      |
+| `complexity.pattern`             | string     | `{src,server,shared}/**/*.ts` | `[pattern]` argument   |
+| `complexity.ignore`              | string[]   | none                          | `--ignore <glob>`      |
+| `comments.maxLines`              | number     | `2`                           | `--max-lines <n>`      |
+| `comments.pattern`               | string     | `{src,server,shared}/**/*.ts` | `[pattern]` argument   |
+| `comments.ignore`                | string[]   | none                          | `--ignore <glob>`      |
+| `comments.pushback`              | boolean    | `false` (`true` under `all`)  | `--pushback`           |
+| `comments.warn`                  | boolean    | `false`                       | `--warn`               |
+| `comments.blockNewComments`      | boolean    | `false`                       | `--block-new-comments` |
+| `unusedCode.maxWarnings`         | number     | none                          | `--max-warnings <n>`   |
+| `duplicateCode.maxWarnings`      | number     | none                          | `--max-warnings <n>`   |
+| `duplicateCode.paths`            | string[]   | `["src"]`                     | none (config only)     |
+| `duplicateCode.ignore`           | string[]   | `["**/*.test.*"]`             | none (config only)     |
+| `circularDeps.extensions`        | string[]   | skott's default               | none (config only)     |
+| `circularDeps.ignore`            | string[]   | none                          | none (config only)     |
+| `circularDeps.ignoreTypeImports` | boolean    | `false`                       | none (config only)     |
+| `hardcodedColors.root`           | string     | `src`                         | `--root <dir>`         |
+| `hardcodedColors.ignore`         | string[]   | none                          | `--ignore <glob>`      |
+| `forbiddenStrings`               | rule array | none                          | none (config only)     |
+
+**Precedence** is command-line flag, then config, then the built-in default. A flag given on the command line replaces the config value for that option. Lists are replaced, not merged: passing any `--ignore` drops the whole config `ignore` list for that run. The `complexity` and `comments` ignore lists are always added on top of the built-in `**/*test.ts*`, while `duplicateCode.paths` and `duplicateCode.ignore` replace their defaults. For an external check, args after `--` are still appended to the command built from config.
+
+**A bad config fails the check.** A verify config that is not valid JSON, has a key that is not in the table above (there is no raw `args` key), or has a setting of the wrong type fails every check that reads the verify config, both as `verifyx <check>` and under `verifyx all`. Nothing falls back to defaults. The message names the file and the key:
+
+```
+complexity: invalid verify config
+verify.config.json: unknown key "complexity.args" (allowed: threshold, pattern, ignore)
+verify.config.json: "complexity.threshold" must be a number
+```
+
+For a config under the `verify` key of `package.json`, the file is `package.json` and the key is prefixed, as in `verify.complexity.threshold`. `lint`, `format`, `check-types` and `github-actions` read nothing from the verify config, so they still run. `verifyx eject` also refuses to write a command built from a bad config. With no verify config at all, every check uses its built-in defaults.
+
+**External** checks keep the rest of their configuration in their own tool's config (`.oxlintrc.json`, `tsconfig.json`, `knip.json`, and so on), listed under [Built-in checks](#built-in-checks). Only the settings above come from the verify config; `lint`, `format` and `check-types` read nothing from it.
+
+### Before and after
+
+Without the config, every option is a flag in a `verify:*` script, and the lines grow long:
+
+```jsonc
+// package.json
+{
+  "scripts": {
+    "verify:circular-deps": "verifyx circular-deps -- --fileExtensions=.ts,.tsx --ignorePattern=**/*.test.* --ignorePattern=features/logging/offline-provider.ts --no-trackTypeOnlyDependencies",
+    "verify:duplicate-code": "jscpd --format typescript,tsx --exit-code 1 --ignore \"**/*.test.*\" --ignore \"**/generated/**\" -r consoleFull app features scripts",
+    "verify:unused-code": "verifyx unused-code --max-warnings 226",
   },
 }
 ```
 
-**External** checks don't use this file; each is configured through its own tool's config (`.oxlintrc.json`, `tsconfig.json`, `knip.json`, and so on), listed under [Built-in checks](#built-in-checks).
+With the settings in `verify.config.json`, those scripts are no longer needed. `verifyx all` picks the settings up on its own, and if you keep a script it shrinks to `verifyx <check>`:
+
+```jsonc
+// verify.config.json
+{
+  "circularDeps": {
+    "extensions": [".ts", ".tsx"],
+    "ignore": ["**/*.test.*", "features/logging/offline-provider.ts"],
+    "ignoreTypeImports": true,
+  },
+  "duplicateCode": {
+    "paths": ["app", "features", "scripts"],
+    "ignore": ["**/*.test.*", "**/generated/**"],
+  },
+  "unusedCode": { "maxWarnings": 226 },
+}
+```
 
 ## CI/CD
 

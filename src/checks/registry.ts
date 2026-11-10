@@ -1,9 +1,12 @@
 import fs from 'node:fs'
 
 import { withoutRed } from '../shared/color.ts'
+import { loadVerifyConfig } from '../shared/config.ts'
 import { runComments } from './comments.ts'
 import { runComplexity } from './complexity.ts'
+import { withVerifyConfig } from './configFailure.ts'
 import { defineExternalCheck } from './external.ts'
+import { circularDepsCommand, duplicateCodeCommand } from './externalConfig.ts'
 import { runForbiddenStrings } from './forbidden-strings.ts'
 import { runGithubActions } from './github-actions.ts'
 import { runHardcodedColors } from './hardcoded-colors.ts'
@@ -30,7 +33,7 @@ export const CHECKS: Check[] = [
     'comments',
     'Flag long comment blocks (JSDoc / context: exempt); --block-new-comments also fails comments on changed lines',
     true,
-    () => runComments({ pushback: true }),
+    () => withVerifyConfig('comments', ({ comments }) => runComments({ pushback: comments?.pushback ?? true })),
     'verifyx comments --pushback',
   ),
   nativeCheck('hardcoded-colors', 'Fail on literal hex / 0x colour values in source', false, () => runHardcodedColors()),
@@ -80,12 +83,15 @@ export const CHECKS: Check[] = [
     failureAdvice:
       'An "unused" finding can be a false positive when the file is loaded dynamically (directory scan + require(), glob-registered ORM entities) or a script calls a system binary. Verify before deleting: suppress genuinely runtime-loaded files via knip `entry` globs and system tools via `ignoreBinaries` — never delete a file to satisfy this check without checking how it is loaded.',
     maxWarnings: { strategy: 'flag', toArgs: (n) => ['--max-issues', String(n)] },
+    configMaxWarnings: () => loadVerifyConfig().unusedCode?.maxWarnings,
   }),
   defineExternalCheck({
     name: 'circular-deps',
     description: 'Circular dependency detection',
     bin: 'skott',
-    checkCommand: ['skott', '--displayMode=raw', '--showCircularDependencies', '--exitCodeOnCircularDependencies=1'],
+    get checkCommand() {
+      return circularDepsCommand()
+    },
     devDeps: ['skott'],
     pnpmDenyBuilds: ['@parcel/watcher'],
     docs: 'https://github.com/antoine-coulon/skott',
@@ -94,13 +100,16 @@ export const CHECKS: Check[] = [
     name: 'duplicate-code',
     description: 'Copy-paste / duplicate-code detection',
     bin: 'jscpd',
-    checkCommand: ['jscpd', '--format', 'typescript,tsx', '--exit-code', '1', '--ignore', '**/*.test.*', '-r', 'consoleFull', 'src'],
+    get checkCommand() {
+      return duplicateCodeCommand()
+    },
     devDeps: ['jscpd'],
     // jscpd hardcodes red header cells in its stats table (even on a clean run) — reads like a failure. It ignores
     // NO_COLOR/FORCE_COLOR, so strip the red foreground from its output; the table renders in the default colour.
     transformOutput: withoutRed,
     docs: 'https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config',
     maxWarnings: { strategy: 'count', unit: 'duplicated region', count: jscpdCount },
+    configMaxWarnings: () => loadVerifyConfig().duplicateCode?.maxWarnings,
   }),
 ]
 

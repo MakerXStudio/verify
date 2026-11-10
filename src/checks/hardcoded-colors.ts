@@ -4,7 +4,8 @@ import path from 'node:path'
 import { minimatch } from 'minimatch'
 
 import { color } from '../shared/color.ts'
-import { loadVerifyConfig } from '../shared/config.ts'
+import type { VerifyConfig } from '../shared/config.ts'
+import { withVerifyConfig } from './configFailure.ts'
 import type { CheckResult } from './types.ts'
 
 const COLOR_PATTERN = /0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{3,8}/
@@ -26,9 +27,12 @@ export type HardcodedColorsOptions = { root?: string; ignore?: readonly string[]
 
 /** Fail on literal hex / 0x colours in source. Cross-platform (no `grep`); suggests the design-token path. */
 export function runHardcodedColors(opts: HardcodedColorsOptions = {}): CheckResult {
-  const config = loadVerifyConfig()
-  const root = opts.root ?? config.hardcodedColors?.root ?? 'src'
-  const ignoreGlobs = opts.ignore?.length ? opts.ignore : (config.hardcodedColors?.ignore ?? [])
+  return withVerifyConfig('hardcoded-colors', ({ hardcodedColors }) => checkHardcodedColors(opts, hardcodedColors))
+}
+
+function checkHardcodedColors(opts: HardcodedColorsOptions, config: NonNullable<VerifyConfig['hardcodedColors']> = {}): CheckResult {
+  const root = opts.root ?? config.root ?? 'src'
+  const ignoreGlobs = opts.ignore?.length ? opts.ignore : (config.ignore ?? [])
 
   const files: string[] = []
   walk(root, files)

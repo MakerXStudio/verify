@@ -41,8 +41,11 @@ export function registerChecks(program: Command): void {
     .argument('[pattern]', 'glob, directory, or file to scan')
     .option('--max-lines <n>', 'maximum comment-block length', Number)
     .option('--pushback', 'add AI back-pressure framing to the failure message')
+    .option('--no-pushback', 'turn off pushback set in the verify config')
     .option('--warn', 'report without failing the run')
+    .option('--no-warn', 'turn off warn set in the verify config')
     .option('--block-new-comments', 'also fail on any comment on a line changed against HEAD')
+    .option('--no-block-new-comments', 'turn off blockNewComments set in the verify config')
     .option('--ignore <glob>', 'ignore glob (repeatable)', collect, [])
     .action(
       (

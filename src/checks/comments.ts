@@ -7,9 +7,10 @@ import { findLongCommentBlocks } from '../comments.ts'
 import { printCommentBlockReport } from '../report.ts'
 import { color } from '../shared/color.ts'
 import { scanFileComments } from '../shared/comment-scan.ts'
-import { loadVerifyConfig } from '../shared/config.ts'
+import { resolveList, type VerifyConfig } from '../shared/config.ts'
 import { parseDiffAddedLines } from '../shared/diff.ts'
 import { gitDiffAgainstBase } from '../shared/git.ts'
+import { withVerifyConfig } from './configFailure.ts'
 import type { CheckResult } from './types.ts'
 
 const DEFAULT_MAX_COMMENT_BLOCK_LINES = 2
@@ -90,24 +91,31 @@ export type CommentsOptions = {
 /**
  * Native check: flag comment blocks longer than `maxLines` (JSDoc and `context:`-prefixed blocks exempt).
  * With `blockNewComments`, additionally fail on any comment on a line changed against HEAD.
+ * Each option resolves as the given value, then `comments` in the verify config, then the built-in default.
  */
 export function runComments(opts: CommentsOptions = {}): CheckResult {
-  const maxLines = opts.maxLines ?? DEFAULT_MAX_COMMENT_BLOCK_LINES
-  const pattern = opts.pattern ?? DEFAULT_PATTERN
-  const files = findSourceFiles(resolvePattern(pattern), [...DEFAULT_IGNORE, ...(opts.ignore ?? [])])
+  return withVerifyConfig('comments', ({ comments }) => checkComments(opts, comments))
+}
+
+function checkComments(opts: CommentsOptions, config: NonNullable<VerifyConfig['comments']> = {}): CheckResult {
+  const maxLines = opts.maxLines ?? config.maxLines ?? DEFAULT_MAX_COMMENT_BLOCK_LINES
+  const pattern = opts.pattern ?? config.pattern ?? DEFAULT_PATTERN
+  const ignoreGlobs = resolveList(opts.ignore, config.ignore)
+  const pushback = opts.pushback ?? config.pushback ?? false
+  const warn = opts.warn ?? config.warn ?? false
+  const files = findSourceFiles(resolvePattern(pattern), [...DEFAULT_IGNORE, ...ignoreGlobs])
 
   const blocks = findLongCommentBlocks(files, maxLines)
   let blocksOk = true
   if (blocks.length === 0) {
     console.log(color.green(`No comment block over ${maxLines} line(s)`))
   } else {
-    printCommentBlockReport(blocks, maxLines, { pushback: !!opts.pushback, warn: !!opts.warn })
-    blocksOk = !!opts.warn
+    printCommentBlockReport(blocks, maxLines, { pushback, warn })
+    blocksOk = warn
   }
 
   let changedLinesOk = true
-  if (opts.blockNewComments) {
-    const ignoreGlobs = opts.ignore?.length ? opts.ignore : (loadVerifyConfig().comments?.ignore ?? [])
+  if (opts.blockNewComments ?? config.blockNewComments) {
     const findings = findCommentsOnChangedLines(ignoreGlobs)
     if (findings.length === 0) {
       console.log(color.green('No comments on changed lines.'))
