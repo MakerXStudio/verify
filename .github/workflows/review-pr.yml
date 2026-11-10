@@ -1,0 +1,28 @@
+name: Review PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_target:
+    types: [labeled, synchronize]
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: write
+  statuses: write
+
+jobs:
+  review:
+    uses: MakerXStudio/yoke/.github/workflows/review.yml@review-v0.17.2
+    with:
+      provider: litellm
+      reviewer1-harness: claude
+      reviewer1-model: bedrock/claude-opus-5-5-global
+      reviewer2-harness: codex
+      reviewer2-model: azure/gpt-6.1-sol
+      synthesis-harness: claude
+      synthesis-model: bedrock/claude-opus-5-5-global
+      base-url: ${{ vars.REVIEW_CI_BASE_URL }}
+    secrets:
+      REVIEW_CI_API_KEY: ${{ secrets.REVIEW_CI_API_KEY }}
