@@ -3,7 +3,8 @@ import fs from 'node:fs'
 import { minimatch } from 'minimatch'
 
 import { color } from '../shared/color.ts'
-import { type ForbiddenStringsRule, loadVerifyConfig } from '../shared/config.ts'
+import type { ForbiddenStringsRule } from '../shared/config.ts'
+import { withVerifyConfig } from './configFailure.ts'
 import type { CheckResult } from './types.ts'
 
 type ForbiddenStringViolation = { file: string; path: string; value: string }
@@ -46,7 +47,10 @@ export type ForbiddenStringsOptions = { rules?: readonly ForbiddenStringsRule[] 
 
 /** Fail when configured JSON values match a `disallowed` glob. Rules come from verify config. */
 export function runForbiddenStrings(opts: ForbiddenStringsOptions = {}): CheckResult {
-  const rules = opts.rules ?? loadVerifyConfig().forbiddenStrings ?? []
+  return withVerifyConfig('forbidden-strings', ({ forbiddenStrings }) => checkForbiddenStrings(opts.rules ?? forbiddenStrings ?? []))
+}
+
+function checkForbiddenStrings(rules: readonly ForbiddenStringsRule[]): CheckResult {
   if (rules.length === 0) {
     console.log(color.dim('forbidden-strings: no rules configured — skipping'))
     return { name: 'forbidden-strings', ok: true }

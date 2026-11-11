@@ -6,6 +6,7 @@ import { resolveMode } from '../shared/mode.ts'
 import { emit } from '../shared/output.ts'
 import { detectPackageManager, PACKAGE_MANAGER_COMMANDS } from '../shared/packageManager.ts'
 import { appendArgv, formatArgv, formatShellCommand, runArgvCommand } from '../shared/spawn.ts'
+import { configFailure } from './configFailure.ts'
 import { type MaxWarningsSupport, withinBudget } from './maxWarnings.ts'
 import type { Check, CheckMode, CheckResult, RunDefaultOptions } from './types.ts'
 
@@ -52,6 +53,8 @@ export type ExternalCheckSpec = {
   /** Rewrite the tool's captured output before it is printed, e.g. to strip a tool's own hardcoded colouring. */
   transformOutput?: (output: string) => string
   maxWarnings?: MaxWarningsSupport
+  /** The findings budget from the verify config, used when no `--max-warnings` is given on the command line. */
+  configMaxWarnings?: () => number | undefined
 }
 
 /** Pick the command for the run mode: the fix command only in fix mode and only when the check is fixable. */
@@ -99,7 +102,7 @@ export async function runCountedBudget(
   if (withinBudget(count, maxWarnings)) return { name: spec.name, ok: true }
 
   const unit = count === 1 ? budget.unit : `${budget.unit}s`
-  console.error(color.dim(`↳ ${spec.name}: ${count} ${unit} found, exceeds --max-warnings ${maxWarnings}.`))
+  console.error(color.dim(`↳ ${spec.name}: ${count} ${unit} found, exceeds the max-warnings budget of ${maxWarnings}.`))
   if (report) emit(spec.transformOutput ? spec.transformOutput(report) : report)
   console.error(color.dim(externalFailureHint(spec, argv)))
   return { name: spec.name, ok: false }
@@ -127,33 +130,45 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
         fix: spec.fixCommand ? formatShellCommand(spec.fixCommand) : undefined,
       }
     },
-    async runDefault({ extraArgs = [], maxWarnings }: RunDefaultOptions = {}): Promise<CheckResult> {
-      if (!hasLocalBin(spec.bin)) {
-        const cli = PACKAGE_MANAGER_COMMANDS[detectPackageManager(process.cwd())].runCli
-        console.log(color.dim(`${spec.name}: ${spec.bin} not installed — skipping (add it with \`${cli} init\`)`))
-        return { name: spec.name, ok: true, skipped: true }
+    async runDefault(options: RunDefaultOptions = {}): Promise<CheckResult> {
+      try {
+        return await runExternal(spec, options)
+      } catch (error) {
+        return configFailure(spec.name, error)
       }
-      if (spec.canRun && !spec.canRun()) {
-        console.log(color.dim(`${spec.name}: not applicable here — skipping`))
-        return { name: spec.name, ok: true, skipped: true }
-      }
-      const blocked = spec.preflight?.()
-      if (blocked) {
-        console.error(blocked)
-        return { name: spec.name, ok: false }
-      }
-      // quiet: buffer the tool's output and flush only on failure (streamed live under --verbose).
-      const runReport = async (argv: string[]): Promise<CheckResult> => {
-        const code = await runArgvCommand(argv, { env: envWithLocalBin(), quiet: true, transform: spec.transformOutput })
-        if (code !== 0) console.error(color.dim(externalFailureHint(spec, argv)))
-        return { name: spec.name, ok: code === 0 }
-      }
-      if (maxWarnings !== undefined && spec.maxWarnings) {
-        const budget = spec.maxWarnings
-        if (budget.strategy === 'count') return runCountedBudget(spec, budget, maxWarnings, extraArgs, envWithLocalBin())
-        return runReport(appendArgv(selectCommand(spec, resolveMode()), [...extraArgs, ...budget.toArgs(maxWarnings)]))
-      }
-      return runReport(appendArgv(selectCommand(spec, resolveMode()), extraArgs))
     },
   }
+}
+
+async function runExternal(
+  spec: ExternalCheckSpec,
+  { extraArgs = [], maxWarnings: givenMaxWarnings }: RunDefaultOptions,
+): Promise<CheckResult> {
+  if (!hasLocalBin(spec.bin)) {
+    const cli = PACKAGE_MANAGER_COMMANDS[detectPackageManager(process.cwd())].runCli
+    console.log(color.dim(`${spec.name}: ${spec.bin} not installed — skipping (add it with \`${cli} init\`)`))
+    return { name: spec.name, ok: true, skipped: true }
+  }
+  if (spec.canRun && !spec.canRun()) {
+    console.log(color.dim(`${spec.name}: not applicable here — skipping`))
+    return { name: spec.name, ok: true, skipped: true }
+  }
+  const blocked = spec.preflight?.()
+  if (blocked) {
+    console.error(blocked)
+    return { name: spec.name, ok: false }
+  }
+  // quiet: buffer the tool's output and flush only on failure (streamed live under --verbose).
+  const runReport = async (argv: string[]): Promise<CheckResult> => {
+    const code = await runArgvCommand(argv, { env: envWithLocalBin(), quiet: true, transform: spec.transformOutput })
+    if (code !== 0) console.error(color.dim(externalFailureHint(spec, argv)))
+    return { name: spec.name, ok: code === 0 }
+  }
+  const maxWarnings = givenMaxWarnings ?? spec.configMaxWarnings?.()
+  if (maxWarnings !== undefined && spec.maxWarnings) {
+    const budget = spec.maxWarnings
+    if (budget.strategy === 'count') return runCountedBudget(spec, budget, maxWarnings, extraArgs, envWithLocalBin())
+    return runReport(appendArgv(selectCommand(spec, resolveMode()), [...extraArgs, ...budget.toArgs(maxWarnings)]))
+  }
+  return runReport(appendArgv(selectCommand(spec, resolveMode()), extraArgs))
 }
